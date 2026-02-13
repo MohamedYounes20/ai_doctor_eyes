@@ -6,6 +6,7 @@ import 'main_parent_screen.dart';
 
 /// Selection Screen: Grid layout, Blue #0052CC theme.
 /// Navigates to MainParentScreen when done, or back if in update mode.
+/// Supports multiple selection of conditions.
 class SelectionScreen extends StatefulWidget {
   final bool isUpdateMode;
 
@@ -17,13 +18,20 @@ class SelectionScreen extends StatefulWidget {
 
 class _SelectionScreenState extends State<SelectionScreen> {
   final PreferencesService _prefs = PreferencesService();
-  HealthCondition? _selectedCondition;
+  final Set<HealthCondition> _selectedConditions = {};
   bool _loading = false;
 
+  static const List<(HealthCondition, IconData, Color)> _conditionConfig = [
+    (HealthCondition.diabetes, Icons.monitor_heart_outlined, Colors.purple),
+    (HealthCondition.glutenAllergy, Icons.grass, Color(0xFFB8860B)),
+    (HealthCondition.nutAllergy, Icons.restaurant, Color(0xFF8B4513)),
+    (HealthCondition.hypertension, Icons.favorite, Colors.red),
+  ];
+
   Future<void> _handleGetStarted() async {
-    if (_selectedCondition == null || _loading) return;
+    if (_selectedConditions.isEmpty || _loading) return;
     setState(() => _loading = true);
-    final ok = await _prefs.saveHealthCondition(_selectedCondition!);
+    final ok = await _prefs.saveHealthConditions(_selectedConditions.toList());
     if (ok && mounted) {
       if (!widget.isUpdateMode) await _prefs.setOnboardingCompleted(true);
       if (widget.isUpdateMode) {
@@ -37,32 +45,58 @@ class _SelectionScreenState extends State<SelectionScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
+  void _toggleCondition(HealthCondition condition) {
+    setState(() {
+      if (_selectedConditions.contains(condition)) {
+        _selectedConditions.remove(condition);
+      } else {
+        _selectedConditions.add(condition);
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingConditions();
+  }
+
+  Future<void> _loadExistingConditions() async {
+    final conditions = await _prefs.getHealthConditions();
+    if (mounted) {
+      setState(() {
+        _selectedConditions.clear();
+        _selectedConditions.addAll(conditions);
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Select Your Condition'),
+        title: const Text('Select Your Conditions'),
         centerTitle: true,
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
       ),
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 16),
               Text(
-                'Select Your Condition',
+                'Select Your Conditions',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
               ),
               const SizedBox(height: 8),
               Text(
-                'Choose your health conditions to personalize your food scanning experience',
+                'Choose one or more health conditions to personalize your food scanning experience',
                 style: TextStyle(
                   fontSize: AppTheme.bodyFontSize,
                   color: Colors.grey.shade600,
@@ -70,45 +104,29 @@ class _SelectionScreenState extends State<SelectionScreen> {
               ),
               const SizedBox(height: 32),
               // 2x2 Grid
-              Expanded(
+              SizedBox(
+                height: 340,
                 child: GridView.count(
                   crossAxisCount: 2,
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
                   childAspectRatio: 0.85,
+                  physics: const NeverScrollableScrollPhysics(),
                   children: [
-                    _ConditionCard(
-                      condition: HealthCondition.diabetes,
-                      icon: Icons.monitor_heart_outlined,
-                      color: Colors.purple,
-                      selected: _selectedCondition == HealthCondition.diabetes,
-                      onTap: () => setState(
-                          () => _selectedCondition = HealthCondition.diabetes),
-                    ),
-                    _ConditionCard(
-                      condition: HealthCondition.glutenAllergy,
-                      icon: Icons.grass,
-                      color: Colors.amber.shade700,
-                      selected:
-                          _selectedCondition == HealthCondition.glutenAllergy,
-                      onTap: () => setState(() =>
-                          _selectedCondition = HealthCondition.glutenAllergy),
-                    ),
-                    _ConditionCard(
-                      condition: HealthCondition.hypertension,
-                      icon: Icons.favorite,
-                      color: Colors.red,
-                      selected:
-                          _selectedCondition == HealthCondition.hypertension,
-                      onTap: () => setState(() =>
-                          _selectedCondition = HealthCondition.hypertension),
-                    ),
+                    for (final (condition, icon, color) in _conditionConfig)
+                      _ConditionCard(
+                        condition: condition,
+                        icon: icon,
+                        color: color,
+                        selected: _selectedConditions.contains(condition),
+                        onTap: () => _toggleCondition(condition),
+                      ),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _selectedCondition != null && !_loading
+                onPressed: _selectedConditions.isNotEmpty && !_loading
                     ? _handleGetStarted
                     : null,
                 style: ElevatedButton.styleFrom(
@@ -127,7 +145,7 @@ class _SelectionScreenState extends State<SelectionScreen> {
                   ),
                 ),
               ),
-              if (_selectedCondition == null)
+              if (_selectedConditions.isEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(

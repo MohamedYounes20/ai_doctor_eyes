@@ -85,32 +85,47 @@ class PreferencesService {
     return prefs.getBool(_voiceFeedbackEnabledKey) ?? false;
   }
 
-  Future<bool> saveHealthCondition(HealthCondition condition) async {
+  Future<bool> saveHealthConditions(List<HealthCondition> conditions) async {
     try {
       final prefs = await _prefs;
-      return await prefs.setString(_healthConditionKey, condition.toJson());
+      final jsonList = conditions.map((c) => c.toJson()).toList();
+      return await prefs.setStringList(_healthConditionKey, jsonList);
     } catch (e) {
       return false;
     }
   }
 
-  Future<HealthCondition?> getHealthCondition() async {
+  Future<List<HealthCondition>> getHealthConditions() async {
     try {
       final prefs = await _prefs;
-      final conditionString = prefs.getString(_healthConditionKey);
-      if (conditionString == null) return null;
-      return HealthCondition.fromJson(conditionString);
+      var list = prefs.getStringList(_healthConditionKey);
+      // Migration: old format stored single condition as string
+      if (list == null) {
+        final single = prefs.getString(_healthConditionKey);
+        if (single != null) list = [single];
+      }
+      if (list == null || list.isEmpty) return [];
+      return list
+          .map((s) => HealthCondition.fromJson(s))
+          .whereType<HealthCondition>()
+          .toList();
     } catch (e) {
-      return null;
+      return [];
     }
   }
 
-  Future<bool> hasHealthCondition() async {
-    final condition = await getHealthCondition();
-    return condition != null;
+  /// Legacy: returns first condition for backward compatibility
+  Future<HealthCondition?> getHealthCondition() async {
+    final conditions = await getHealthConditions();
+    return conditions.isNotEmpty ? conditions.first : null;
   }
 
-  Future<bool> clearHealthCondition() async {
+  Future<bool> hasHealthCondition() async {
+    final conditions = await getHealthConditions();
+    return conditions.isNotEmpty;
+  }
+
+  Future<bool> clearHealthConditions() async {
     try {
       final prefs = await _prefs;
       return await prefs.remove(_healthConditionKey);
@@ -118,4 +133,7 @@ class PreferencesService {
       return false;
     }
   }
+
+  /// Legacy alias
+  Future<bool> clearHealthCondition() async => clearHealthConditions();
 }

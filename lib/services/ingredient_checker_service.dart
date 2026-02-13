@@ -21,16 +21,6 @@ class IngredientCheckerService {
       'corn syrup',
       'high fructose',
     ],
-    HealthCondition.hypertension: [
-      'salt',
-      'sodium',
-      'nacl',
-      'msg',
-      'monosodium glutamate',
-      'sodium chloride',
-      'sea salt',
-      'table salt',
-    ],
     HealthCondition.glutenAllergy: [
       'wheat',
       'barley',
@@ -41,43 +31,70 @@ class IngredientCheckerService {
       'semolina',
       'durum',
     ],
+    HealthCondition.nutAllergy: [
+      'peanut',
+      'almond',
+      'cashew',
+      'walnut',
+      'hazelnut',
+      'pecan',
+      'pistachio',
+      'macadamia',
+      'tree nut',
+      'nuts',
+    ],
+    HealthCondition.hypertension: [
+      'salt',
+      'sodium',
+      'nacl',
+      'msg',
+      'monosodium glutamate',
+      'sodium chloride',
+      'sea salt',
+      'table salt',
+    ],
   };
 
-  /// Check if the scanned text contains harmful ingredients
-  /// 
+  /// Check if the scanned text contains harmful ingredients for multiple conditions
+  ///
   /// [scannedText] - The text extracted from the camera using ML Kit
-  /// [condition] - The user's selected health condition
-  /// 
+  /// [conditions] - The user's selected health conditions
+  ///
   /// Returns a list of found harmful ingredients, empty if none found
   List<String> checkForHarmfulIngredients(
     String scannedText,
-    HealthCondition condition,
+    List<HealthCondition> conditions,
   ) {
-    // Get the list of harmful keywords for this condition
-    final harmfulKeywords = _harmfulIngredients[condition] ?? [];
-
-    // Convert scanned text to lowercase for case-insensitive matching
+    final foundIngredients = <String>{};
     final lowerText = scannedText.toLowerCase();
 
-    // Find all matching harmful ingredients
-    final foundIngredients = <String>[];
-    for (final keyword in harmfulKeywords) {
-      if (lowerText.contains(keyword.toLowerCase())) {
-        foundIngredients.add(keyword);
+    for (final condition in conditions) {
+      final harmfulKeywords = _harmfulIngredients[condition] ?? [];
+      for (final keyword in harmfulKeywords) {
+        if (lowerText.contains(keyword.toLowerCase())) {
+          foundIngredients.add(keyword);
+        }
       }
     }
 
-    return foundIngredients;
+    return foundIngredients.toList();
   }
 
+  /// Single-condition overload for backward compatibility
+  List<String> checkForHarmfulIngredientsSingle(
+    String scannedText,
+    HealthCondition condition,
+  ) =>
+      checkForHarmfulIngredients(scannedText, [condition]);
+
   /// Check if the scanned text is safe (no harmful ingredients found)
-  /// 
+  ///
   /// [scannedText] - The text extracted from the camera using ML Kit
-  /// [condition] - The user's selected health condition
-  /// 
+  /// [conditions] - The user's selected health conditions
+  ///
   /// Returns true if safe, false if harmful ingredients are found
-  bool isSafe(String scannedText, HealthCondition condition) {
-    final harmfulIngredients = checkForHarmfulIngredients(scannedText, condition);
+  bool isSafe(String scannedText, List<HealthCondition> conditions) {
+    final harmfulIngredients = checkForHarmfulIngredients(scannedText, conditions);
     return harmfulIngredients.isEmpty;
   }
 }

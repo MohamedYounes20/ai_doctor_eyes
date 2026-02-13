@@ -6,22 +6,27 @@
 enum HealthCondition {
   /// Diabetes - checks for sugar-related ingredients
   diabetes,
-  
-  /// Hypertension - checks for salt and sodium-related ingredients
-  hypertension,
-  
+
   /// Gluten Allergy - checks for gluten-containing ingredients
-  glutenAllergy;
+  glutenAllergy,
+
+  /// Nut Allergy - checks for nut-containing ingredients
+  nutAllergy,
+
+  /// Hypertension - checks for salt and sodium-related ingredients
+  hypertension;
 
   /// Get the display name for the health condition
   String get displayName {
     switch (this) {
       case HealthCondition.diabetes:
         return 'Diabetes';
-      case HealthCondition.hypertension:
-        return 'Hypertension';
       case HealthCondition.glutenAllergy:
         return 'Gluten Allergy';
+      case HealthCondition.nutAllergy:
+        return 'Nut Allergy';
+      case HealthCondition.hypertension:
+        return 'Hypertension';
     }
   }
 
@@ -30,10 +35,12 @@ enum HealthCondition {
     switch (this) {
       case HealthCondition.diabetes:
         return 'Monitor sugar and sweetener intake';
-      case HealthCondition.hypertension:
-        return 'Monitor salt and sodium intake';
       case HealthCondition.glutenAllergy:
         return 'Avoid gluten-containing ingredients';
+      case HealthCondition.nutAllergy:
+        return 'Avoid nut-containing ingredients';
+      case HealthCondition.hypertension:
+        return 'Monitor salt and sodium intake';
     }
   }
 

@@ -14,7 +14,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   final PreferencesService _prefs = PreferencesService();
-  HealthCondition? _currentCondition;
+  List<HealthCondition> _currentConditions = [];
   bool _vibrationEnabled = true;
   bool _voiceFeedbackEnabled = false;
   bool _loading = true;
@@ -26,12 +26,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _load() async {
-    final condition = await _prefs.getHealthCondition();
+    final conditions = await _prefs.getHealthConditions();
     final vib = await _prefs.isVibrationEnabled();
     final voice = await _prefs.isVoiceFeedbackEnabled();
     if (mounted) {
       setState(() {
-        _currentCondition = condition;
+        _currentConditions = conditions;
         _vibrationEnabled = vib;
         _voiceFeedbackEnabled = voice;
         _loading = false;
@@ -114,14 +114,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     child: ListTile(
                       leading: const Icon(Icons.medical_services, color: AppTheme.primaryColor),
                       title: Text(
-                        _currentCondition?.displayName ?? 'None',
+                        _currentConditions.isEmpty
+                            ? 'None'
+                            : _currentConditions.map((c) => c.displayName).join(', '),
                         style: const TextStyle(
                           fontSize: AppTheme.bodyFontSize,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                       subtitle: Text(
-                        _currentCondition?.description ?? 'Select a condition',
+                        _currentConditions.isEmpty
+                            ? 'Select conditions'
+                            : '${_currentConditions.length} condition(s) selected',
                         style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                       ),
                       trailing: const Icon(Icons.chevron_right),

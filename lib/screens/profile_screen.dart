@@ -24,7 +24,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String? _fullName;
   int? _yearOfBirth;
-  HealthCondition? _condition;
+  List<HealthCondition> _conditions = [];
   List<ScanHistoryItem> _scanHistory = [];
   bool _loading = true;
 
@@ -44,13 +44,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _load() async {
     final name = await _prefs.getFullName();
     final year = await _prefs.getYearOfBirth();
-    final condition = await _prefs.getHealthCondition();
+    final conditions = await _prefs.getHealthConditions();
     final history = await _db.getAllScanHistory();
     if (mounted) {
       setState(() {
         _fullName = name ?? 'User';
         _yearOfBirth = year;
-        _condition = condition;
+        _conditions = conditions;
         _scanHistory = history;
         _loading = false;
       });
@@ -157,32 +157,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: AppTheme.primaryColor),
                             ),
-                            child: _condition != null
-                                ? Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _buildConditionRow(_condition!.displayName),
-                                      OutlinedButton.icon(
-                                        onPressed: () async {
-                                          await Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => const SelectionScreen(isUpdateMode: true),
-                                            ),
-                                          );
-                                          _refresh();
-                                          widget.onUpdateConditions?.call();
-                                        },
-                                        icon: const Icon(Icons.edit, size: 18),
-                                        label: const Text('Update My Conditions'),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: AppTheme.primaryColor,
-                                          side: const BorderSide(color: AppTheme.primaryColor),
-                                        ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (_conditions.isEmpty)
+                                  const Text('No conditions selected')
+                                else
+                                  ..._conditions.map(
+                                    (c) => _buildConditionRow(c.displayName),
+                                  ),
+                                OutlinedButton.icon(
+                                  onPressed: () async {
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const SelectionScreen(isUpdateMode: true),
                                       ),
-                                    ],
-                                  )
-                                : const Text('No condition selected'),
+                                    );
+                                    _refresh();
+                                    widget.onUpdateConditions?.call();
+                                  },
+                                  icon: const Icon(Icons.edit, size: 18),
+                                  label: Text(
+                                    _conditions.isEmpty
+                                        ? 'Select Conditions'
+                                        : 'Update My Conditions',
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppTheme.primaryColor,
+                                    side: const BorderSide(color: AppTheme.primaryColor),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 24),
                           // Scan history

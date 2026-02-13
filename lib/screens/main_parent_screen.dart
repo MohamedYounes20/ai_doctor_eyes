@@ -18,12 +18,12 @@ class _MainParentScreenState extends State<MainParentScreen> {
   final PreferencesService _prefs = PreferencesService();
   final ValueNotifier<int> _scanRefreshTrigger = ValueNotifier(0);
   int _currentIndex = 1; // Scan is default
-  HealthCondition? _healthCondition;
+  List<HealthCondition> _healthConditions = [];
 
   @override
   void initState() {
     super.initState();
-    _loadCondition();
+    _loadConditions();
   }
 
   @override
@@ -32,19 +32,23 @@ class _MainParentScreenState extends State<MainParentScreen> {
     super.dispose();
   }
 
-  Future<void> _loadCondition() async {
-    final c = await _prefs.getHealthCondition();
-    if (mounted) setState(() => _healthCondition = c);
+  Future<void> _loadConditions() async {
+    final conditions = await _prefs.getHealthConditions();
+    if (mounted) setState(() => _healthConditions = conditions);
   }
 
   List<Widget> _buildPages() {
+    final conditions = _healthConditions.isEmpty
+        ? [HealthCondition.diabetes]
+        : _healthConditions;
     return [
       ProfileScreen(
-        onUpdateConditions: _loadCondition,
+        onUpdateConditions: _loadConditions,
         scanRefreshTrigger: _scanRefreshTrigger,
       ),
       ScannerScreen(
-        healthCondition: _healthCondition ?? HealthCondition.diabetes,
+        healthConditions: conditions,
+        isVisible: _currentIndex == 1,
         onScanComplete: () => _scanRefreshTrigger.value++,
       ),
       const SettingsScreen(),
