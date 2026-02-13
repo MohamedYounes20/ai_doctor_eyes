@@ -192,37 +192,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ),
                           ),
                           const SizedBox(height: 24),
-                          // Scan history
-                          Text(
-                            'Scan History',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 12),
+                          // Scan history - temporarily commented out
+                          // Text(
+                          //   'Scan History',
+                          //   style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          //         fontWeight: FontWeight.bold,
+                          //       ),
+                          // ),
+                          // const SizedBox(height: 12),
                         ],
                       ),
                     ),
                   ),
-                  if (_scanHistory.isEmpty)
-                    const SliverFillRemaining(
-                      child: Center(
-                        child: Text(
-                          'No scan history yet',
-                          style: TextStyle(fontSize: AppTheme.bodyFontSize, color: Colors.grey),
-                        ),
-                      ),
-                    )
-                  else
-                    SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) {
-                          final item = _scanHistory[index];
-                          return _ScanHistoryCard(item: item);
-                        },
-                        childCount: _scanHistory.length,
-                      ),
-                    ),
+                  // Scan history list - temporarily commented out
+                  // if (_scanHistory.isEmpty)
+                  //   const SliverFillRemaining(
+                  //     child: Center(
+                  //       child: Text(
+                  //         'No scan history yet',
+                  //         style: TextStyle(fontSize: AppTheme.bodyFontSize, color: Colors.grey),
+                  //       ),
+                  //     ),
+                  //   )
+                  // else
+                  //   SliverList(
+                  //     delegate: SliverChildBuilderDelegate(
+                  //       (context, index) {
+                  //         final item = _scanHistory[index];
+                  //         return _ScanHistoryCard(item: item);
+                  //       },
+                  //       childCount: _scanHistory.length,
+                  //     ),
+                  //   ),
                 ],
               ),
             ),

@@ -170,19 +170,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
         // Voice feedback (TTS)
         await _speakResult(isSafe);
 
-        // Data integrity: only save valid results (not Unknown Product or empty)
-        final productName = _extractProductName(text);
-        final isValidProduct = productName.isNotEmpty &&
-            productName.toLowerCase() != 'unknown product';
-        if (isValidProduct) {
-          await _db.insertScanHistory(ScanHistoryItem(
-            productName: productName,
-            status: isSafe ? 'Safe' : 'Danger',
-            harmfulIngredients: harmfulIngredients.join(', '),
-            timestamp: DateTime.now(),
-          ));
-          widget.onScanComplete?.call();
-        }
+        // History saving temporarily disabled - uncomment when ready to persist scans
+        // _saveScanResult(productName: _extractProductName(text), isSafe: isSafe, harmfulIngredients: harmfulIngredients);
       }
 
       final imageFile = File(image.path);
@@ -197,6 +186,25 @@ class _ScannerScreenState extends State<ScannerScreen> {
         text.split('\n').map((l) => l.trim()).where((l) => l.length > 3).toList();
     return lines.isNotEmpty ? lines.first : '';
   }
+
+  // History saving temporarily disabled - uncomment when ready to persist scans
+  // Future<void> _saveScanResult({
+  //   required String productName,
+  //   required bool isSafe,
+  //   required List<String> harmfulIngredients,
+  // }) async {
+  //   final isValidProduct = productName.isNotEmpty &&
+  //       productName.toLowerCase() != 'unknown product';
+  //   if (isValidProduct) {
+  //     await _db.insertScanHistory(ScanHistoryItem(
+  //       productName: productName,
+  //       status: isSafe ? 'Safe' : 'Danger',
+  //       harmfulIngredients: harmfulIngredients.join(', '),
+  //       timestamp: DateTime.now(),
+  //     ));
+  //     widget.onScanComplete?.call();
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {

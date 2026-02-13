@@ -103,16 +103,15 @@ class _SelectionScreenState extends State<SelectionScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              // 2x2 Grid
-              SizedBox(
-                height: 340,
-                child: GridView.count(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 16,
-                  childAspectRatio: 0.85,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
+              // 2x2 Grid - shrinkWrap + NeverScrollableScrollPhysics for parent scroll
+              GridView.count(
+                shrinkWrap: true,
+                crossAxisCount: 2,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                childAspectRatio: 0.85,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
                     for (final (condition, icon, color) in _conditionConfig)
                       _ConditionCard(
                         condition: condition,
@@ -121,8 +120,7 @@ class _SelectionScreenState extends State<SelectionScreen> {
                         selected: _selectedConditions.contains(condition),
                         onTap: () => _toggleCondition(condition),
                       ),
-                  ],
-                ),
+                ],
               ),
               const SizedBox(height: 24),
               ElevatedButton(
