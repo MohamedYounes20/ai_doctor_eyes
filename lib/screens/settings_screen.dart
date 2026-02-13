@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
-import 'scanner_screen.dart';
+import 'selection_screen.dart';
 
-/// Settings Screen
-/// 
-/// This screen allows users to change their selected health condition.
-/// It displays the current selection and allows them to choose a different one.
+/// Settings Screen: Vibration toggle, Voice Feedback toggle (TTS placeholder).
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -15,69 +13,41 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final PreferencesService _preferencesService = PreferencesService();
+  final PreferencesService _prefs = PreferencesService();
   HealthCondition? _currentCondition;
-  bool _isLoading = true;
-  bool _isSaving = false;
+  bool _vibrationEnabled = true;
+  bool _voiceFeedbackEnabled = false;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentCondition();
+    _load();
   }
 
-  /// Load the currently saved health condition
-  Future<void> _loadCurrentCondition() async {
-    final condition = await _preferencesService.getHealthCondition();
+  Future<void> _load() async {
+    final condition = await _prefs.getHealthCondition();
+    final vib = await _prefs.isVibrationEnabled();
+    final voice = await _prefs.isVoiceFeedbackEnabled();
     if (mounted) {
       setState(() {
         _currentCondition = condition;
-        _isLoading = false;
+        _vibrationEnabled = vib;
+        _voiceFeedbackEnabled = voice;
+        _loading = false;
       });
     }
   }
 
-  /// Handle changing the health condition
-  Future<void> _changeCondition(HealthCondition newCondition) async {
-    setState(() {
-      _isSaving = true;
-    });
+  Future<void> _setVibration(bool value) async {
+    await _prefs.setVibrationEnabled(value);
+    if (mounted) setState(() => _vibrationEnabled = value);
+  }
 
-    // Save the new condition
-    final saved = await _preferencesService.saveHealthCondition(newCondition);
-
-    if (saved && mounted) {
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Condition changed to ${newCondition.displayName}',
-          ),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      // Navigate back to scanner with new condition
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => ScannerScreen(healthCondition: newCondition),
-        ),
-      );
-    } else {
-      // Show error message
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to save changes. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-        setState(() {
-          _isSaving = false;
-        });
-      }
-    }
+  Future<void> _setVoiceFeedback(bool value) async {
+    await _prefs.setVoiceFeedbackEnabled(value);
+    if (mounted) setState(() => _voiceFeedbackEnabled = value);
+    // TTS placeholder - will use flutter_tts when implemented
   }
 
   @override
@@ -85,192 +55,142 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          'Settings',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Settings'),
         centerTitle: true,
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
-        elevation: 4,
       ),
-      body: SafeArea(
-        child: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Current selection display
-                    Card(
-                      color: Colors.blue.shade50,
-                      elevation: 2,
-                      child: Padding(
-                        padding: const EdgeInsets.all(20.0),
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Current Selection',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _currentCondition?.displayName ?? 'None',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.blue.shade700,
-                              ),
-                            ),
-                            if (_currentCondition != null) ...[
-                              const SizedBox(height: 8),
-                              Text(
-                                _currentCondition!.description,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  color: Colors.grey.shade600,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ],
+      body: _loading
+          ? const Center(child: CircularProgressIndicator(color: AppTheme.primaryColor))
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Accessibility',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+                  _SettingsTile(
+                    icon: Icons.vibration,
+                    title: 'Vibration Alerts',
+                    subtitle: 'Alert you with vibration',
+                    value: _vibrationEnabled,
+                    onChanged: _setVibration,
+                  ),
+                  const Divider(),
+                  _SettingsTile(
+                    icon: Icons.visibility,
+                    title: 'High Contrast Mode',
+                    subtitle: 'Increase color contrast',
+                    value: false,
+                    onChanged: (_) {},
+                  ),
+                  const Divider(),
+                  _SettingsTile(
+                    icon: Icons.volume_up,
+                    title: 'Voice Feedback',
+                    subtitle: 'Hear scan results aloud',
+                    value: _voiceFeedbackEnabled,
+                    onChanged: _setVoiceFeedback,
+                  ),
+                  const SizedBox(height: 32),
+                  Text(
+                    'Health Condition',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    elevation: 0,
+                    color: Colors.grey.shade100,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.medical_services, color: AppTheme.primaryColor),
+                      title: Text(
+                        _currentCondition?.displayName ?? 'None',
+                        style: const TextStyle(
+                          fontSize: AppTheme.bodyFontSize,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 32),
-
-                    // Change condition section
-                    const Text(
-                      'Change Condition:',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                      subtitle: Text(
+                        _currentCondition?.description ?? 'Select a condition',
+                        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                       ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SelectionScreen(isUpdateMode: true),
+                          ),
+                        );
+                        _load();
+                      },
                     ),
-                    const SizedBox(height: 16),
-
-                    // Diabetes option
-                    _buildConditionCard(
-                      condition: HealthCondition.diabetes,
-                      icon: Icons.warning_amber_rounded,
-                      color: Colors.orange,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Hypertension option
-                    _buildConditionCard(
-                      condition: HealthCondition.hypertension,
-                      icon: Icons.favorite,
-                      color: Colors.red,
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Gluten Allergy option
-                    _buildConditionCard(
-                      condition: HealthCondition.glutenAllergy,
-                      icon: Icons.restaurant,
-                      color: Colors.green,
-                    ),
-
-                    const Spacer(),
-
-                    // Loading indicator
-                    if (_isSaving)
-                      const Padding(
-                        padding: EdgeInsets.all(16.0),
-                        child: CircularProgressIndicator(),
-                      ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-      ),
+            ),
     );
   }
+}
 
-  /// Build a card widget for each health condition option
-  Widget _buildConditionCard({
-    required HealthCondition condition,
-    required IconData icon,
-    required Color color,
-  }) {
-    final isSelected = _currentCondition == condition;
+class _SettingsTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isSelected ? color : Colors.grey.shade300,
-          width: isSelected ? 2 : 1,
-        ),
-      ),
-      child: InkWell(
-        onTap: _isSaving || isSelected
-            ? null
-            : () => _changeCondition(condition),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Row(
+  const _SettingsTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: AppTheme.primaryColor, size: 24),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Icon
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  size: 32,
-                  color: color,
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: AppTheme.bodyFontSize,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(width: 16),
-              // Text content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      condition.displayName,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      condition.description,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
                 ),
               ),
-              // Selection indicator
-              if (isSelected)
-                Icon(
-                  Icons.check_circle,
-                  color: color,
-                  size: 28,
-                ),
             ],
           ),
         ),
-      ),
+        Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
+          activeColor: AppTheme.primaryColor,
+        ),
+      ],
     );
   }
 }

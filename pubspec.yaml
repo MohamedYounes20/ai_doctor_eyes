@@ -53,6 +53,11 @@ dependencies:
   # ML Kit for text recognition (offline)
   google_mlkit_text_recognition: ^0.15.0
 
+  sqflite: ^2.3.0
+  path: ^1.8.3
+  intl: ^0.18.1
+  flutter_tts: ^3.8.3
+  
 dev_dependencies:
   flutter_test:
     sdk: flutter

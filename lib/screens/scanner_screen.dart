@@ -1,23 +1,25 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:vibration/vibration.dart';
+import '../app_theme.dart';
 import '../models/health_condition.dart';
+import '../models/scan_history_item.dart';
+import '../services/database_helper.dart';
 import '../services/ingredient_checker_service.dart';
-import 'dart:io'; // موجودة للتصحيح
+import '../services/preferences_service.dart';
 
-/// Scanner Screen
-///
-/// This screen displays the camera view and continuously scans for text
-/// using Google ML Kit. It checks for harmful ingredients every 1-2 seconds
-/// and displays warnings or safe messages accordingly.
+/// Scanner Screen: Camera + ML Kit, SAFE/DANGER banners, save to DB.
 class ScannerScreen extends StatefulWidget {
   final HealthCondition healthCondition;
+  final VoidCallback? onScanComplete;
 
   const ScannerScreen({
     super.key,
     required this.healthCondition,
+    this.onScanComplete,
   });
 
   @override
@@ -26,19 +28,17 @@ class ScannerScreen extends StatefulWidget {
 
 class _ScannerScreenState extends State<ScannerScreen> {
   CameraController? _cameraController;
-  final IngredientCheckerService _ingredientChecker =
-      IngredientCheckerService();
+  final IngredientCheckerService _ingredientChecker = IngredientCheckerService();
   final TextRecognizer _textRecognizer = TextRecognizer();
+  final PreferencesService _prefs = PreferencesService();
+  final DatabaseHelper _db = DatabaseHelper.instance;
 
-  // State variables
   bool _isInitialized = false;
   bool _isProcessing = false;
   String _scannedText = '';
   List<String> _harmfulIngredients = [];
   bool _isSafe = true;
   String _statusMessage = 'Scanning...';
-
-  // Timer for periodic scanning
   Timer? _scanTimer;
 
   @override
@@ -55,81 +55,49 @@ class _ScannerScreenState extends State<ScannerScreen> {
     super.dispose();
   }
 
-  /// Initialize the camera
   Future<void> _initializeCamera() async {
     try {
-      // Get available cameras
       final cameras = await availableCameras();
       if (cameras.isEmpty) {
-        setState(() {
-          _statusMessage = 'No camera available';
-        });
+        setState(() => _statusMessage = 'No camera available');
         return;
       }
-
-      // Initialize camera controller (use back camera)
       _cameraController = CameraController(
         cameras[0],
         ResolutionPreset.high,
         enableAudio: false,
       );
-
       await _cameraController!.initialize();
-
       if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-        // Start periodic scanning
+        setState(() => _isInitialized = true);
         _startScanning();
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _statusMessage = 'Camera error: $e';
-        });
-      }
+      if (mounted) setState(() => _statusMessage = 'Camera error: $e');
     }
   }
 
-  /// Start periodic scanning every 1.5 seconds
   void _startScanning() {
-    _scanTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
-      if (!_isProcessing && _isInitialized) {
-        _processCameraFrame();
-      }
+    _scanTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      if (!_isProcessing && _isInitialized) _processCameraFrame();
     });
   }
 
-  /// Process a frame from the camera to extract text
   Future<void> _processCameraFrame() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) {
-      return;
-    }
-
-    setState(() {
-      _isProcessing = true;
-    });
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    setState(() => _isProcessing = true);
 
     try {
-      // Take a picture
       final image = await _cameraController!.takePicture();
-
-      // Process the image with ML Kit
       final inputImage = InputImage.fromFilePath(image.path);
       final recognizedText = await _textRecognizer.processImage(inputImage);
-
-      // Extract text
       final text = recognizedText.text;
 
       if (mounted) {
-        // Check for harmful ingredients
-        final harmfulIngredients =
-            _ingredientChecker.checkForHarmfulIngredients(
+        final harmfulIngredients = _ingredientChecker.checkForHarmfulIngredients(
           text,
           widget.healthCondition,
         );
-
         final isSafe = harmfulIngredients.isEmpty;
 
         setState(() {
@@ -139,36 +107,32 @@ class _ScannerScreenState extends State<ScannerScreen> {
           _statusMessage = isSafe ? 'Safe' : 'Danger';
         });
 
-        // Trigger vibration if harmful ingredients found
-        if (!isSafe) {
-          _triggerVibration();
+        // Vibration (respect user preference)
+        final vibEnabled = await _prefs.isVibrationEnabled();
+        if (!isSafe && (vibEnabled && (await Vibration.hasVibrator() ?? false))) {
+          Vibration.vibrate(duration: 500);
         }
+
+        // Save to DB
+        final productName = _extractProductName(text);
+        await _db.insertScanHistory(ScanHistoryItem(
+          productName: productName,
+          status: isSafe ? 'Safe' : 'Danger',
+          harmfulIngredients: harmfulIngredients.join(', '),
+          timestamp: DateTime.now(),
+        ));
+        widget.onScanComplete?.call();
       }
 
-      // --- التعديل هنا (السطر 146 وما بعده) ---
-      // تحويل XFile إلى File عادي من مكتبة dart:io لحذفه بنجاح
-      final File imageFile = File(image.path);
-      if (await imageFile.exists()) {
-        await imageFile.delete();
-      }
-      // ---------------------------------------
-    } catch (e) {
-      // Handle errors silently to avoid spam
-      debugPrint('Error processing frame: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-        });
-      }
-    }
+      final imageFile = File(image.path);
+      if (await imageFile.exists()) await imageFile.delete();
+    } catch (_) {}
+    if (mounted) setState(() => _isProcessing = false);
   }
 
-  /// Trigger device vibration
-  Future<void> _triggerVibration() async {
-    if (await Vibration.hasVibrator() ?? false) {
-      Vibration.vibrate(duration: 500);
-    }
+  String _extractProductName(String text) {
+    final lines = text.split('\n').where((l) => l.trim().length > 3).toList();
+    return lines.isNotEmpty ? lines.first.trim() : 'Unknown Product';
   }
 
   @override
@@ -176,72 +140,45 @@ class _ScannerScreenState extends State<ScannerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(
-          'Scanning: ${widget.healthCondition.displayName}',
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        backgroundColor: Colors.black87,
+        title: const Text('AI Food Scanner'),
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.of(context).pushNamed('/settings');
-            },
-            tooltip: 'Settings',
-          ),
-        ],
       ),
       body: Stack(
         children: [
-          // Camera preview
           if (_isInitialized && _cameraController != null)
-            SizedBox.expand(
-              child: CameraPreview(_cameraController!),
-            )
+            SizedBox.expand(child: CameraPreview(_cameraController!))
           else
             Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const CircularProgressIndicator(),
+                  const CircularProgressIndicator(color: Colors.white),
                   const SizedBox(height: 20),
                   Text(
                     _statusMessage,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                    ),
+                    style: const TextStyle(color: Colors.white, fontSize: AppTheme.bodyFontSize),
                   ),
                 ],
               ),
             ),
-
-          // Status overlay
           Positioned(
             top: 20,
-            left: 0,
-            right: 0,
-            child: _buildStatusOverlay(),
+            left: 20,
+            right: 20,
+            child: _buildStatusBanner(),
           ),
-
-          // Harmful ingredients list (if any found)
           if (_harmfulIngredients.isNotEmpty)
             Positioned(
-              bottom: 100,
-              left: 0,
-              right: 0,
+              bottom: 120,
+              left: 20,
+              right: 20,
               child: _buildHarmfulIngredientsList(),
             ),
-
-          // Instructions at bottom
           Positioned(
             bottom: 20,
-            left: 0,
-            right: 0,
+            left: 20,
+            right: 20,
             child: _buildInstructions(),
           ),
         ],
@@ -249,42 +186,42 @@ class _ScannerScreenState extends State<ScannerScreen> {
     );
   }
 
-  /// Build the status overlay (DANGER or SAFE)
-  Widget _buildStatusOverlay() {
+  Widget _buildStatusBanner() {
+    final color = _isSafe ? AppTheme.safeColor : AppTheme.dangerColor;
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
       decoration: BoxDecoration(
-        color: _isSafe ? Colors.green : Colors.red,
+        color: color,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: (_isSafe ? Colors.green : Colors.red).withOpacity(0.5),
-            blurRadius: 10,
-            spreadRadius: 2,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            _isSafe ? Icons.check_circle : Icons.warning,
+            color: Colors.white,
+            size: 32,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            _isSafe ? 'SAFE' : 'DANGER',
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+              letterSpacing: 2,
+            ),
           ),
         ],
-      ),
-      child: Text(
-        _isSafe ? 'SAFE' : 'DANGER',
-        style: const TextStyle(
-          fontSize: 36,
-          fontWeight: FontWeight.bold,
-          color: Colors.white,
-          letterSpacing: 4,
-        ),
-        textAlign: TextAlign.center,
       ),
     );
   }
 
-  /// Build the list of harmful ingredients found
   Widget _buildHarmfulIngredientsList() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.red.shade900.withOpacity(0.9),
+        color: AppTheme.dangerColor.withOpacity(0.95),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -292,31 +229,28 @@ class _ScannerScreenState extends State<ScannerScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'Harmful Ingredients Found:',
+            'Detected Harmful Ingredients:',
             style: TextStyle(
               color: Colors.white,
-              fontSize: 18,
+              fontSize: AppTheme.bodyFontSize,
               fontWeight: FontWeight.bold,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           ..._harmfulIngredients.map(
-            (ingredient) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+            (ing) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.warning,
-                    color: Colors.white,
-                    size: 20,
-                  ),
+                  const Icon(Icons.warning, color: Colors.white, size: 20),
                   const SizedBox(width: 8),
-                  Text(
-                    ingredient.toUpperCase(),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+                  Expanded(
+                    child: Text(
+                      ing,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: AppTheme.bodyFontSize,
+                      ),
                     ),
                   ),
                 ],
@@ -328,20 +262,20 @@ class _ScannerScreenState extends State<ScannerScreen> {
     );
   }
 
-  /// Build instructions text
   Widget _buildInstructions() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.black.withOpacity(0.7),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Text(
-        'Point camera at ingredient list',
-        style: TextStyle(
+      child: Text(
+        _isSafe
+            ? 'All ingredients are safe! This product is suitable for your health condition.'
+            : 'Point camera at ingredient list',
+        style: const TextStyle(
           color: Colors.white,
-          fontSize: 16,
+          fontSize: AppTheme.bodyFontSize,
         ),
         textAlign: TextAlign.center,
       ),

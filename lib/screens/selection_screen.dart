@@ -1,59 +1,40 @@
 import 'package:flutter/material.dart';
+import '../app_theme.dart';
 import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
-import 'scanner_screen.dart';
+import 'main_parent_screen.dart';
 
-/// Selection Screen
-/// 
-/// This is the initial setup screen where users select their health condition.
-/// It displays large, easy-to-read buttons for each condition option.
-/// The selection is saved locally and the user is navigated to the scanner screen.
+/// Selection Screen: Grid layout, Blue #0052CC theme.
+/// Navigates to MainParentScreen when done, or back if in update mode.
 class SelectionScreen extends StatefulWidget {
-  const SelectionScreen({super.key});
+  final bool isUpdateMode;
+
+  const SelectionScreen({super.key, this.isUpdateMode = false});
 
   @override
   State<SelectionScreen> createState() => _SelectionScreenState();
 }
 
 class _SelectionScreenState extends State<SelectionScreen> {
-  final PreferencesService _preferencesService = PreferencesService();
+  final PreferencesService _prefs = PreferencesService();
   HealthCondition? _selectedCondition;
-  bool _isLoading = false;
+  bool _loading = false;
 
-  /// Handle the selection of a health condition
-  /// 
-  /// Saves the selection and navigates to the scanner screen
-  Future<void> _handleSelection(HealthCondition condition) async {
-    setState(() {
-      _selectedCondition = condition;
-      _isLoading = true;
-    });
-
-    // Save the selected condition
-    final saved = await _preferencesService.saveHealthCondition(condition);
-
-    if (saved && mounted) {
-      // Navigate to scanner screen
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => ScannerScreen(healthCondition: condition),
-        ),
-      );
-    } else {
-      // Show error if save failed
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to save selection. Please try again.'),
-            backgroundColor: Colors.red,
-          ),
+  Future<void> _handleGetStarted() async {
+    if (_selectedCondition == null || _loading) return;
+    setState(() => _loading = true);
+    final ok = await _prefs.saveHealthCondition(_selectedCondition!);
+    if (ok && mounted) {
+      if (!widget.isUpdateMode) await _prefs.setOnboardingCompleted(true);
+      if (widget.isUpdateMode) {
+        Navigator.of(context).pop();
+      } else {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const MainParentScreen()),
         );
-        setState(() {
-          _isLoading = false;
-          _selectedCondition = null;
-        });
       }
     }
+    if (mounted) setState(() => _loading = false);
   }
 
   @override
@@ -61,159 +42,172 @@ class _SelectionScreenState extends State<SelectionScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text(
-          'Select Your Condition',
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('Select Your Condition'),
         centerTitle: true,
-        backgroundColor: Colors.blue.shade700,
+        backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
-        elevation: 4,
       ),
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24.0),
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Welcome message
-              const SizedBox(height: 20),
-              const Text(
-                'Welcome to AI Doctor Eyes',
+              const SizedBox(height: 16),
+              Text(
+                'Select Your Condition',
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Choose your health conditions to personalize your food scanning experience',
                 style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  fontSize: AppTheme.bodyFontSize,
+                  color: Colors.grey.shade600,
                 ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 12),
-              const Text(
-                'Please select your health condition to get started:',
-                style: TextStyle(
-                  fontSize: 20,
-                  color: Colors.black54,
+              const SizedBox(height: 32),
+              // 2x2 Grid
+              Expanded(
+                child: GridView.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 16,
+                  crossAxisSpacing: 16,
+                  childAspectRatio: 0.85,
+                  children: [
+                    _ConditionCard(
+                      condition: HealthCondition.diabetes,
+                      icon: Icons.monitor_heart_outlined,
+                      color: Colors.purple,
+                      selected: _selectedCondition == HealthCondition.diabetes,
+                      onTap: () => setState(
+                          () => _selectedCondition = HealthCondition.diabetes),
+                    ),
+                    _ConditionCard(
+                      condition: HealthCondition.glutenAllergy,
+                      icon: Icons.grass,
+                      color: Colors.amber.shade700,
+                      selected:
+                          _selectedCondition == HealthCondition.glutenAllergy,
+                      onTap: () => setState(() =>
+                          _selectedCondition = HealthCondition.glutenAllergy),
+                    ),
+                    _ConditionCard(
+                      condition: HealthCondition.hypertension,
+                      icon: Icons.favorite,
+                      color: Colors.red,
+                      selected:
+                          _selectedCondition == HealthCondition.hypertension,
+                      onTap: () => setState(() =>
+                          _selectedCondition = HealthCondition.hypertension),
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 40),
-
-              // Diabetes option
-              _buildConditionCard(
-                condition: HealthCondition.diabetes,
-                icon: Icons.warning_amber_rounded,
-                color: Colors.orange,
-              ),
-              const SizedBox(height: 20),
-
-              // Hypertension option
-              _buildConditionCard(
-                condition: HealthCondition.hypertension,
-                icon: Icons.favorite,
-                color: Colors.red,
-              ),
-              const SizedBox(height: 20),
-
-              // Gluten Allergy option
-              _buildConditionCard(
-                condition: HealthCondition.glutenAllergy,
-                icon: Icons.restaurant,
-                color: Colors.green,
-              ),
-
-              const Spacer(),
-
-              // Loading indicator
-              if (_isLoading)
-                const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: CircularProgressIndicator(),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _selectedCondition != null && !_loading
+                    ? _handleGetStarted
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
+                child: Text(
+                  _loading ? 'Saving...' : 'Get Started',
+                  style: const TextStyle(
+                    fontSize: AppTheme.bodyFontSize,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (_selectedCondition == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Please select at least one condition',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
       ),
     );
   }
+}
 
-  /// Build a card widget for each health condition option
-  /// 
-  /// [condition] - The health condition to display
-  /// [icon] - Icon to show for this condition
-  /// [color] - Color theme for this condition card
-  Widget _buildConditionCard({
-    required HealthCondition condition,
-    required IconData icon,
-    required Color color,
-  }) {
-    final isSelected = _selectedCondition == condition;
+class _ConditionCard extends StatelessWidget {
+  final HealthCondition condition;
+  final IconData icon;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
 
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: isSelected ? color : Colors.grey.shade300,
-          width: isSelected ? 3 : 1,
-        ),
-      ),
-      child: InkWell(
-        onTap: _isLoading ? null : () => _handleSelection(condition),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Row(
-            children: [
-              // Icon
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  size: 40,
-                  color: color,
-                ),
-              ),
-              const SizedBox(width: 20),
-              // Text content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      condition.displayName,
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      condition.description,
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey.shade600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // Selection indicator
-              if (isSelected)
-                Icon(
-                  Icons.check_circle,
-                  color: color,
-                  size: 32,
-                ),
-            ],
+  const _ConditionCard({
+    required this.condition,
+    required this.icon,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppTheme.primaryColor : Colors.grey.shade300,
+            width: selected ? 3 : 1,
           ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 48, color: color),
+            const SizedBox(height: 12),
+            Text(
+              condition.displayName,
+              style: const TextStyle(
+                fontSize: AppTheme.bodyFontSize,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              condition.description,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey.shade600,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (selected)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: CircleAvatar(
+                  radius: 12,
+                  backgroundColor: AppTheme.primaryColor,
+                  child: const Icon(Icons.check, color: Colors.white, size: 18),
+                ),
+              ),
+          ],
         ),
       ),
     );

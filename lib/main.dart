@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'models/health_condition.dart';
+import 'app_theme.dart';
+import 'screens/main_parent_screen.dart';
 import 'screens/selection_screen.dart';
-import 'screens/scanner_screen.dart';
-import 'screens/settings_screen.dart';
+import 'screens/welcome_screen.dart';
 import 'services/preferences_service.dart';
 
 void main() async {
@@ -14,9 +14,7 @@ void main() async {
 
 Future<void> _requestCameraPermission() async {
   final status = await Permission.camera.request();
-  if (status.isDenied) {
-    debugPrint('Camera permission denied');
-  }
+  if (status.isDenied) debugPrint('Camera permission denied');
 }
 
 class MyApp extends StatelessWidget {
@@ -27,22 +25,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'AI Doctor Eyes',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
-          brightness: Brightness.light,
-        ),
-      ),
-      routes: {
-        '/': (context) => const InitialRoute(),
-        '/settings': (context) => const SettingsScreen(),
-      },
-      initialRoute: '/',
+      theme: AppTheme.theme,
+      home: const InitialRoute(),
     );
   }
 }
 
+/// Routes: WelcomeScreen (first time) -> SelectionScreen -> MainParentScreen.
 class InitialRoute extends StatefulWidget {
   const InitialRoute({super.key});
 
@@ -51,41 +40,35 @@ class InitialRoute extends StatefulWidget {
 }
 
 class _InitialRouteState extends State<InitialRoute> {
-  final PreferencesService _preferencesService = PreferencesService();
+  final PreferencesService _prefs = PreferencesService();
 
   @override
   void initState() {
     super.initState();
-    _checkHealthCondition();
+    _route();
   }
 
-  Future<void> _checkHealthCondition() async {
-    final hasCondition = await _preferencesService.hasHealthCondition();
+  Future<void> _route() async {
+    final onboardingDone = await _prefs.hasCompletedOnboarding();
+    final hasCondition = await _prefs.hasHealthCondition();
 
-    if (mounted) {
-      if (hasCondition) {
-        final condition = await _preferencesService.getHealthCondition();
-        if (condition != null) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => ScannerScreen(healthCondition: condition),
-            ),
-          );
-        } else {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => SelectionScreen(),
-            ),
-          );
-        }
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (context) => SelectionScreen(),
-          ),
-        );
-      }
+    if (!mounted) return;
+
+    if (!onboardingDone) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
+      );
+      return;
     }
+    if (!hasCondition) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const SelectionScreen()),
+      );
+      return;
+    }
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const MainParentScreen()),
+    );
   }
 
   @override
@@ -95,9 +78,10 @@ class _InitialRouteState extends State<InitialRoute> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(),
+            CircularProgressIndicator(color: AppTheme.primaryColor),
             SizedBox(height: 20),
-            Text('Loading...', style: TextStyle(fontSize: 18)),
+            Text('Loading...',
+                style: TextStyle(fontSize: AppTheme.bodyFontSize)),
           ],
         ),
       ),
