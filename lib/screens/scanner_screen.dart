@@ -4,6 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:vibration/vibration.dart';
 import '../app_theme.dart';
 import '../models/health_condition.dart';
@@ -36,6 +37,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   final TextRecognizer _textRecognizer = TextRecognizer();
   final PreferencesService _prefs = PreferencesService();
   final DatabaseHelper _db = DatabaseHelper.instance;
+  final ImagePicker _picker = ImagePicker();
   FlutterTts? _tts;
 
   bool _isInitialized = false;
@@ -134,6 +136,75 @@ class _ScannerScreenState extends State<ScannerScreen> {
     await _tts!.speak(isSafe ? 'Safe' : 'Danger');
   }
 
+  Future<void> _pickFromGallery() async {
+    // Pause periodic camera scanning while picking from gallery
+    _scanTimer?.cancel();
+    _scanTimer = null;
+
+    try {
+      final XFile? file =
+          await _picker.pickImage(source: ImageSource.gallery);
+      if (file == null) {
+        // User cancelled – resume scanning if still on scanner tab
+        if (mounted && widget.isVisible && _isInitialized) {
+          _startScanning();
+        }
+        return;
+      }
+
+      final inputImage = InputImage.fromFilePath(file.path);
+      final recognizedText = await _textRecognizer.processImage(inputImage);
+      final text = recognizedText.text.trim();
+
+      if (!mounted) return;
+
+      // Validation: ensure we have meaningful text
+      if (text.length < 5) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Image is not clear. Please pick a clearer photo of the ingredients.',
+            ),
+          ),
+        );
+        if (widget.isVisible && _isInitialized) {
+          _startScanning();
+        }
+        return;
+      }
+
+      final harmfulIngredients =
+          _ingredientChecker.checkForHarmfulIngredients(
+        text,
+        widget.healthConditions,
+      );
+      final isSafe = harmfulIngredients.isEmpty;
+
+      setState(() {
+        _scannedText = text;
+        _harmfulIngredients = harmfulIngredients;
+        _hasScanned = true;
+        _isSafe = isSafe;
+        _statusMessage = isSafe ? 'Safe' : 'Danger';
+      });
+
+      // Vibration (respect user preference)
+      final vibEnabled = await _prefs.isVibrationEnabled();
+      if (!isSafe && (vibEnabled && (await Vibration.hasVibrator() ?? false))) {
+        Vibration.vibrate(duration: 500);
+      }
+
+      // Voice feedback (TTS)
+      await _speakResult(isSafe);
+    } catch (_) {
+      // Ignore errors, just resume scanning if possible
+    } finally {
+      if (mounted && widget.isVisible && _isInitialized) {
+        _startScanning();
+      }
+    }
+  }
+
   Future<void> _processCameraFrame() async {
     if (_cameraController == null ||
         !_cameraController!.value.isInitialized ||
@@ -214,6 +285,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
         title: const Text('AI Food Scanner'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.photo_library),
+            tooltip: 'Scan from gallery',
+            onPressed: _pickFromGallery,
+          ),
+        ],
       ),
       body: Stack(
         children: [
