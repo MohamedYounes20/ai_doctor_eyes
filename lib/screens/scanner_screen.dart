@@ -145,10 +145,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       final XFile? file =
           await _picker.pickImage(source: ImageSource.gallery);
       if (file == null) {
-        // User cancelled – resume scanning if still on scanner tab
-        if (mounted && widget.isVisible && _isInitialized) {
-          _startScanning();
-        }
+        // User cancelled – nothing to analyze
         return;
       }
 
@@ -167,9 +164,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
             ),
           ),
         );
-        if (widget.isVisible && _isInitialized) {
-          _startScanning();
-        }
         return;
       }
 
@@ -196,6 +190,122 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
       // Voice feedback (TTS)
       await _speakResult(isSafe);
+
+      // Show result in a bottom sheet for gallery scans
+      await showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (context) {
+          final color =
+              isSafe ? AppTheme.safeColor : AppTheme.dangerColor;
+          final icon =
+              isSafe ? Icons.check_circle : Icons.warning;
+          final statusText = isSafe ? 'SAFE' : 'DANGER';
+
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Gallery Analysis',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 12, horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon, color: Colors.white),
+                        const SizedBox(width: 8),
+                        Text(
+                          statusText,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: AppTheme.titleFontSize,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Detected Harmful Ingredients',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  if (harmfulIngredients.isEmpty)
+                    const Text(
+                      'None detected for your selected conditions.',
+                      style: TextStyle(fontSize: AppTheme.bodyFontSize),
+                    )
+                  else
+                    ...harmfulIngredients.map(
+                      (ing) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning,
+                                color: Colors.red, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                ing,
+                                style: const TextStyle(
+                                  fontSize: AppTheme.bodyFontSize,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    height: 48,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text(
+                        'Close',
+                        style: TextStyle(
+                          fontSize: AppTheme.bodyFontSize,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
     } catch (_) {
       // Ignore errors, just resume scanning if possible
     } finally {
@@ -218,31 +328,47 @@ class _ScannerScreenState extends State<ScannerScreen> {
       final text = recognizedText.text.trim();
 
       if (mounted) {
-        final harmfulIngredients = _ingredientChecker.checkForHarmfulIngredients(
-          text,
-          widget.healthConditions,
-        );
-        final isSafe = harmfulIngredients.isEmpty;
+        final normalized = text.replaceAll(RegExp(r'\s+'), '');
+        final hasContent = normalized.length >= 10;
 
-        setState(() {
-          _scannedText = text;
-          _harmfulIngredients = harmfulIngredients;
-          _hasScanned = true;
-          _isSafe = isSafe;
-          _statusMessage = isSafe ? 'Safe' : 'Danger';
-        });
+        if (!hasContent) {
+          // Not enough text: stay in Scanning state, no haptics or voice
+          setState(() {
+            _scannedText = text;
+            _harmfulIngredients = [];
+            _hasScanned = false;
+            _isSafe = true;
+            _statusMessage = 'Scanning...';
+          });
+        } else {
+          final harmfulIngredients =
+              _ingredientChecker.checkForHarmfulIngredients(
+            text,
+            widget.healthConditions,
+          );
+          final isSafe = harmfulIngredients.isEmpty;
 
-        // Vibration (respect user preference)
-        final vibEnabled = await _prefs.isVibrationEnabled();
-        if (!isSafe && (vibEnabled && (await Vibration.hasVibrator() ?? false))) {
-          Vibration.vibrate(duration: 500);
+          setState(() {
+            _scannedText = text;
+            _harmfulIngredients = harmfulIngredients;
+            _hasScanned = true;
+            _isSafe = isSafe;
+            _statusMessage = isSafe ? 'Safe' : 'Danger';
+          });
+
+          // Vibration (respect user preference)
+          final vibEnabled = await _prefs.isVibrationEnabled();
+          if (!isSafe &&
+              (vibEnabled && (await Vibration.hasVibrator() ?? false))) {
+            Vibration.vibrate(duration: 500);
+          }
+
+          // Voice feedback (TTS)
+          await _speakResult(isSafe);
+
+          // History saving temporarily disabled - uncomment when ready to persist scans
+          // _saveScanResult(productName: _extractProductName(text), isSafe: isSafe, harmfulIngredients: harmfulIngredients);
         }
-
-        // Voice feedback (TTS)
-        await _speakResult(isSafe);
-
-        // History saving temporarily disabled - uncomment when ready to persist scans
-        // _saveScanResult(productName: _extractProductName(text), isSafe: isSafe, harmfulIngredients: harmfulIngredients);
       }
 
       final imageFile = File(image.path);
