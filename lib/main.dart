@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 import 'app_theme.dart';
 import 'screens/main_parent_screen.dart';
 import 'screens/selection_screen.dart';
@@ -8,6 +10,7 @@ import 'services/preferences_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   await _requestCameraPermission();
   runApp(const MyApp());
 }

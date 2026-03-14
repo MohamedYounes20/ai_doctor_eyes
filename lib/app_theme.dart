@@ -14,6 +14,9 @@ class AppTheme {
   /// Danger status color (red)
   static const Color dangerColor = Color(0xFFE00000);
 
+  /// Warning status color (amber/yellow)
+  static const Color warningColor = Color(0xFFF59E0B);
+
   /// Minimum body font size (18px)
   static const double bodyFontSize = 18;
 
