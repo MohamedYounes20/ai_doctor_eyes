@@ -357,6 +357,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     final issues = _ingredientDetails
         .where((d) => d.status != IngredientStatus.safe)
+        .where((d) => _isValidIngredientName(d.ingredientName))
         .toList();
 
     return Padding(
@@ -770,6 +771,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   Widget _buildIngredientDetailsList() {
     final issues = _ingredientDetails
         .where((d) => d.status != IngredientStatus.safe)
+        .where((d) => _isValidIngredientName(d.ingredientName))
         .toList();
 
     if (issues.isEmpty) return const SizedBox();
@@ -884,5 +886,23 @@ class _ScannerScreenState extends State<ScannerScreen> {
         textAlign: TextAlign.center,
       ),
     );
+  }
+
+  /// Returns false for ingredient names that are OCR noise:
+  /// - Less than 3 characters
+  /// - More than 50% symbols/punctuation (non-letter, non-digit, non-space)
+  bool _isValidIngredientName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.length < 3) return false;
+
+    final nonSpace = trimmed.replaceAll(RegExp(r'\s'), '');
+    if (nonSpace.isEmpty) return false;
+
+    // Count characters that are NOT letters (any script) or digits
+    final symbolCount =
+        nonSpace.replaceAll(RegExp(r'[\p{L}\p{N}]', unicode: true), '').length;
+    if (symbolCount / nonSpace.length > 0.5) return false;
+
+    return true;
   }
 }

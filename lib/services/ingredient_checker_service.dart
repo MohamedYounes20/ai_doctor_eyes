@@ -269,9 +269,28 @@ class IngredientCheckerService {
     'kca'       : '',   // trailing calorie noise
   };
 
+  // ── Non-ingredient phrase blacklist ──────────────────────────────────────────
+  //
+  // Common OCR-caught packaging text that is NOT an ingredient.
+  // Matched case-insensitively against each token.
+  static const List<String> _nonIngredientBlacklist = [
+    // English
+    'keep in a clean', 'net weight', 'net wt', 'batch no', 'batch number',
+    'store in', 'ingredients:', 'best before', 'best by', 'exp date',
+    'expiry date', 'use by', 'manufactured by', 'product of', 'produced by',
+    'see cap', 'shake well', 'keep refrigerated', 'serving suggestion',
+    'may contain traces', 'for best quality', 'once opened',
+    'protect from', 'keep away', 'distributed by',
+    // Arabic
+    'يحفظ في', 'الوزن الصافي', 'رقم التشغيلة', 'تاريخ الانتهاء',
+    'صنع في', 'انتاج', 'تاريخ الانتاج', 'يستخدم قبل', 'الشركة المصنعة',
+    'قد يحتوي على', 'بعد الفتح', 'رقم الشهادة',
+  ];
+
   /// Sanitize a single ingredient token for clean UI display:
   ///  - Apply fuzzy OCR corrections.
   ///  - Strip generic prefixes ("Ingredients", "Contains", etc.).
+  ///  - Discard non-ingredient packaging text via blacklist.
   ///  - Remove trailing lone numbers or short gibberish fragments.
   ///  - Returns empty string if the token should be discarded.
   String sanitizeIngredientName(String raw) {
@@ -292,8 +311,15 @@ class IngredientCheckerService {
     s = s.trim();
     if (s.isEmpty) return '';
 
-    // Apply fuzzy corrections (whole-string match on lower-cased token)
+    // ── Blacklist check: discard non-ingredient packaging text ──
     final lower = s.toLowerCase();
+    for (final phrase in _nonIngredientBlacklist) {
+      if (lower.contains(phrase.toLowerCase())) {
+        return ''; // discard
+      }
+    }
+
+    // Apply fuzzy corrections (whole-string match on lower-cased token)
     for (final entry in _ocrCorrections.entries) {
       if (lower.contains(entry.key)) {
         return entry.value; // '' means discard
@@ -483,14 +509,21 @@ class IngredientCheckerService {
       ageContext = ' (patient age: ${DateTime.now().year - yob})';
     }
 
+    // Build condition severity context for personalized risk
+    final conditionDescriptions = conditions
+        .map((c) => '${c.displayName}: ${c.description}')
+        .join('; ');
+
     final prompt = '''
 Task: Analyze the provided "Ingredients" text only.
 
 Internal Translation: Identify both Arabic and English ingredients and treat them as one entity.
 
+Arabic OCR Note: If Arabic text appears garbled, partially recognized, or contains character errors, cross-reference it with any English text present on the same label. Also compare garbled Arabic tokens against this list of common harmful ingredients: سكر، جلوكوز، فركتوز، ملح، صوديوم، قمح، جلوتين، فول سوداني، لوز، مالتوديكسترين. Attempt to infer the correct ingredient rather than discarding garbled text.
+
 Strict Rule: IGNORE all nutritional values, percentages, and anything related to the Nutrition Facts table.
 
-Health Check: Identify ingredients that are harmful for a person with the following condition(s): $conditionNames$ageContext.
+Personalized Risk: This patient has $conditionNames$ageContext. Condition details: $conditionDescriptions. Tailor the risk assessment specifically for this patient profile.
 
 Note: Basic harmful keywords have already been screened locally. Focus on complex, compound, or less-obvious harmful ingredients.
 
@@ -509,7 +542,7 @@ $cleanedText
 
       final response = await model
           .generateContent([Content.text(prompt)])
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       final responseText = response.text;
       if (responseText != null) {
