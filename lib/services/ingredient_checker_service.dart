@@ -70,14 +70,14 @@ class IngredientCheckerService {
 
   static const Map<HealthCondition, List<String>> _harmfulKeywords = {
     HealthCondition.diabetes: [
-      // English
-      'sugar', 'glucose', 'fructose', 'syrup', 'maltodextrin', 'sucrose',
-      'dextrose', 'corn syrup', 'high fructose', 'honey', 'molasses',
+      // English – comprehensive list
+      'sugar', 'sucrose', 'glucose', 'corn syrup', 'dextrose', 'maltodextrin',
+      'fructose', 'high fructose', 'syrup', 'honey', 'molasses',
       'agave', 'saccharose', 'lactose', 'maltose', 'invert sugar',
       'cane sugar', 'brown sugar', 'raw sugar', 'beet sugar',
-      // Arabic
+      // Arabic (plain, diacritics stripped at match-time)
       'سكر', 'جلوكوز', 'فركتوز', 'شراب', 'مالتوديكسترين', 'سكروز',
-      'ديكستروز', 'شراب ذرة', 'عسل', 'دبس', 'أجاف', 'لاكتوز',
+      'ديكستروز', 'شراب ذرة', 'عسل', 'دبس', 'اجاف', 'لاكتوز',
       'مالتوز', 'سكر قصب', 'سكر بني',
     ],
     HealthCondition.hypertension: [
@@ -235,6 +235,75 @@ class IngredientCheckerService {
         .toList();
   }
 
+  // ── Arabic text normalisation helpers ───────────────────────────────────────
+
+  /// Strip Tashkeel (diacritics) from Arabic text.
+  /// Unicode range \u064B–\u065F covers all common diacritics + shadda/sukun.
+  static final RegExp _tashkeelRegex = RegExp(r'[\u064B-\u065F\u0670]');
+
+  /// Unify common Alef variants → bare Alef (ا).
+  static final RegExp _alefVariantsRegex = RegExp(r'[\u0622\u0623\u0624\u0625\u0627]');
+
+  /// Normalise Arabic string: strip diacritics, unify Alef, convert Taa Marbuta (ة → ه).
+  static String _normalizeArabic(String s) {
+    String result = s.replaceAll(_tashkeelRegex, '');
+    result = result.replaceAll(_alefVariantsRegex, '\u0627'); // → ا
+    result = result.replaceAll('\u0629', '\u0647');           // ة → ه
+    return result;
+  }
+
+  // ── OCR fuzzy-correction map ─────────────────────────────────────────────────
+
+  /// Maps common OCR mis-reads to their correct ingredient name.
+  /// Matching is done case-insensitively against each token.
+  static const Map<String, String> _ocrCorrections = {
+    'cucose'    : 'Glucose',
+    'glucos'    : 'Glucose',
+    'glucse'    : 'Glucose',
+    'sucros'    : 'Sucrose',
+    'surcose'   : 'Sucrose',
+    'fructos'   : 'Fructose',
+    'maltodextr': 'Maltodextrin',
+    'dextros'   : 'Dextrose',
+    'kcaine'    : '',   // gibberish → remove
+    'kca'       : '',   // trailing calorie noise
+  };
+
+  /// Sanitize a single ingredient token for clean UI display:
+  ///  - Apply fuzzy OCR corrections.
+  ///  - Strip generic prefixes ("Ingredients", "Contains", etc.).
+  ///  - Remove trailing lone numbers or short gibberish fragments.
+  ///  - Returns empty string if the token should be discarded.
+  String sanitizeIngredientName(String raw) {
+    String s = raw.trim();
+
+    // Strip leading generic prefixes
+    s = s.replaceAll(
+        RegExp(r'^(ingredients?|contains?|المكونات|مكونات)\s*[:：،,]?\s*',
+            caseSensitive: false),
+        '');
+
+    // Remove trailing noise: lone digits, single chars, or short gibberish
+    // e.g. "Sugar 0", "Salt kcaine"
+    s = s.replaceAll(RegExp(r'\s+\d+\s*$'), '');         // trailing lone number
+    s = s.replaceAll(RegExp(r'\s+[a-z]{1,3}\s*$',
+        caseSensitive: false), '');                        // trailing short fragment
+
+    s = s.trim();
+    if (s.isEmpty) return '';
+
+    // Apply fuzzy corrections (whole-string match on lower-cased token)
+    final lower = s.toLowerCase();
+    for (final entry in _ocrCorrections.entries) {
+      if (lower.contains(entry.key)) {
+        return entry.value; // '' means discard
+      }
+    }
+
+    // Capitalise first letter for consistency
+    return s[0].toUpperCase() + s.substring(1);
+  }
+
   /// Run the local keyword scan. Returns discovered harmful tokens and overall
   /// status without touching the network.
   ({IngredientStatus status, List<IngredientAnalysis> details})
@@ -242,21 +311,31 @@ class IngredientCheckerService {
     final details = <IngredientAnalysis>[];
     bool hasDanger = false;
 
+    // Build keyword map; Arabic keywords are pre-normalised for fast comparison.
     final allKeywords = <String, HealthCondition>{};
     for (final c in conditions) {
       for (final kw in (_harmfulKeywords[c] ?? [])) {
-        allKeywords[kw.toLowerCase()] = c;
+        final normalised = _isArabic(kw)
+            ? _normalizeArabic(kw)
+            : kw.toLowerCase();
+        allKeywords[normalised] = c;
       }
     }
 
     for (final token in tokens) {
-      final lowerToken = token.toLowerCase();
+      // Produce both a Latin-lower and an Arabic-normalised form of the token.
+      final lowerToken   = token.toLowerCase();
+      final arabicToken  = _normalizeArabic(token);
       bool matched = false;
 
       for (final entry in allKeywords.entries) {
-        if (lowerToken.contains(entry.key)) {
+        final kw = entry.key;
+        // Use Arabic-normalised comparison for Arabic keywords, else Latin lower.
+        final tokenForm = _isArabic(kw) ? arabicToken : lowerToken;
+        if (tokenForm.contains(kw)) {
+          final displayName = sanitizeIngredientName(token);
           details.add(IngredientAnalysis(
-            ingredientName: token,
+            ingredientName: displayName.isEmpty ? token : displayName,
             status: IngredientStatus.danger,
             reason:
                 'Identified as harmful for ${entry.value.displayName} (local database).',
@@ -269,11 +348,14 @@ class IngredientCheckerService {
       }
 
       if (!matched) {
-        details.add(IngredientAnalysis(
-          ingredientName: token,
-          status: IngredientStatus.safe,
-          reason: 'Not found in local harmful-ingredients database.',
-        ));
+        final displayName = sanitizeIngredientName(token);
+        if (displayName.isNotEmpty) {
+          details.add(IngredientAnalysis(
+            ingredientName: displayName,
+            status: IngredientStatus.safe,
+            reason: 'Not found in local harmful-ingredients database.',
+          ));
+        }
       }
     }
 
@@ -282,6 +364,10 @@ class IngredientCheckerService {
       details: details,
     );
   }
+
+  /// Returns true if the string contains Arabic characters.
+  static bool _isArabic(String s) =>
+      RegExp(r'[\u0600-\u06FF]').hasMatch(s);
 
   /// Build a cache key from cleaned text + condition set.
   String _cacheKey(String cleanedText, List<HealthCondition> conditions) {
@@ -336,9 +422,11 @@ class IngredientCheckerService {
     // ── Phase 1: Local keyword scan (ALWAYS runs first) ────────────────────
     final localResult = _runLocalScan(tokens, conditions);
 
-    // IMMEDIATE RETURN if local scan found something harmful.
-    // Gemini is NOT called and no AI spinner is shown.
-    if (localResult.status != IngredientStatus.safe) {
+    // IMMEDIATE RETURN if local scan found anything harmful (warning OR danger).
+    // Gemini is NEVER called when a local match is found — this eliminates
+    // the "AI analysis timed out" message for products with obvious bad ingredients.
+    if (localResult.status == IngredientStatus.danger ||
+        localResult.status == IngredientStatus.warning) {
       return ProductAnalysisResult(
         overallStatus: localResult.status,
         details: localResult.details,
