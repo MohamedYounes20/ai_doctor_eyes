@@ -5,6 +5,9 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/health_condition.dart';
+import '../logic/extractor/ocr_cleaner.dart';
+import '../logic/transformer/ingredient_transformer.dart';
+import '../logic/analyzer/health_analyzer.dart';
 import 'database_helper.dart';
 import 'preferences_service.dart';
 
@@ -46,6 +49,12 @@ class ProductAnalysisResult {
   final String reasonAr;
   final String analysisEn;
 
+  /// True when garbled Arabic was guessed – UI should show a warning note.
+  final bool partialArabicWarning;
+
+  /// True if the local scan found harmful ingredients before AI was called/failed
+  final bool localFoundHarmful;
+
   const ProductAnalysisResult({
     required this.overallStatus,
     required this.details,
@@ -53,429 +62,80 @@ class ProductAnalysisResult {
     this.foundHarmful = const [],
     this.reasonAr = '',
     this.analysisEn = '',
+    this.partialArabicWarning = false,
+    this.localFoundHarmful = false,
   });
 }
 
-// ─── Service ──────────────────────────────────────────────────────────────────
+// ─── Service Orchestrator ───────────────────────────────────────────────────
 
-/// Hybrid Offline-Online Ingredient Checker Service
+/// Hybrid Offline-Online Ingredient Checker Service (Orchestrator)
 ///
-/// Priority chain:
-///   1. Local keyword matching (zero-latency, always runs first)
-///   2. Product-level AI analysis via Gemini (online only, cached in SQLite)
-///   3. Fallback to local result if Gemini times-out or fails
+/// Strict pipeline: **Extract → Transform → Analyze**
 class IngredientCheckerService {
-
-  // ── Bilingual harmful-ingredient lists ──────────────────────────────────────
-
-  static const Map<HealthCondition, List<String>> _harmfulKeywords = {
-    HealthCondition.diabetes: [
-      // English – comprehensive list
-      'sugar', 'sucrose', 'glucose', 'corn syrup', 'dextrose', 'maltodextrin',
-      'fructose', 'high fructose', 'syrup', 'honey', 'molasses',
-      'agave', 'saccharose', 'lactose', 'maltose', 'invert sugar',
-      'cane sugar', 'brown sugar', 'raw sugar', 'beet sugar',
-      // Arabic (plain, diacritics stripped at match-time)
-      'سكر', 'جلوكوز', 'فركتوز', 'شراب', 'مالتوديكسترين', 'سكروز',
-      'ديكستروز', 'شراب ذرة', 'عسل', 'دبس', 'اجاف', 'لاكتوز',
-      'مالتوز', 'سكر قصب', 'سكر بني',
-    ],
-    HealthCondition.hypertension: [
-      // English
-      'salt', 'sodium', 'nacl', 'msg', 'monosodium glutamate',
-      'sodium chloride', 'sea salt', 'table salt', 'baking soda',
-      'sodium bicarbonate', 'sodium nitrate', 'sodium nitrite',
-      'disodium', 'sodium benzoate', 'sodium phosphate',
-      // Arabic
-      'ملح', 'صوديوم', 'كلوريد الصوديوم', 'غلوتامات أحادية الصوديوم',
-      'ملح البحر', 'بيكربونات الصوديوم', 'نترات الصوديوم',
-      'بنزوات الصوديوم',
-    ],
-    HealthCondition.glutenAllergy: [
-      // English
-      'wheat', 'barley', 'rye', 'gluten', 'malt', 'triticale',
-      'semolina', 'durum', 'spelt', 'kamut', 'einkorn', 'emmer',
-      'farro', 'bulgur', 'couscous', 'wheat starch', 'wheat flour',
-      'wholemeal', 'breadcrumbs',
-      // Arabic
-      'قمح', 'شعير', 'جاودار', 'جلوتين', 'مالت', 'سميد',
-      'دقيق القمح', 'نخالة القمح', 'كسكس', 'برغل',
-    ],
-    HealthCondition.nutAllergy: [
-      // English
-      'peanut', 'almond', 'cashew', 'walnut', 'hazelnut', 'pecan',
-      'pistachio', 'macadamia', 'tree nut', 'nuts', 'nut',
-      'groundnut', 'pine nut', 'brazil nut', 'chestnut',
-      // Arabic
-      'فول سوداني', 'لوز', 'كاجو', 'جوز', 'بندق', 'بكان',
-      'فستق', 'ماكاديميا', 'مكسرات', 'صنوبر', 'كستناء',
-    ],
-  };
-
-  // ── Nutrition-table noise patterns ──────────────────────────────────────────
-  //
-  // These patterns identify lines/segments that belong to the "Nutrition Facts"
-  // panel rather than the "Ingredients" list.  We strip them BEFORE any
-  // keyword matching or AI analysis to prevent false positives.
-
-  static final List<RegExp> _nutritionLinePatterns = [
-    // General nutrition-table headers
-    RegExp(r'\bnutrition\s*facts?\b', caseSensitive: false),
-    RegExp(r'\bsupplements?\s*facts?\b', caseSensitive: false),
-    RegExp(r'\bvaleurs?\s*nutritives?\b', caseSensitive: false),
-    RegExp(r'\bقيم غذائية\b', caseSensitive: false),
-    RegExp(r'\bالجدول الغذائي\b', caseSensitive: false),
-    // Macronutrient rows
-    RegExp(r'\btotal\s+fat\b', caseSensitive: false),
-    RegExp(r'\bsaturated\s+fat\b', caseSensitive: false),
-    RegExp(r'\btrans\s+fat\b', caseSensitive: false),
-    RegExp(r'\bunsaturated\s+fat\b', caseSensitive: false),
-    RegExp(r'\bpolyunsaturated\b', caseSensitive: false),
-    RegExp(r'\bmonounsaturated\b', caseSensitive: false),
-    RegExp(r'\btotal\s+carbohydrate\b', caseSensitive: false),
-    RegExp(r'\bdietary\s+fiber\b', caseSensitive: false),
-    RegExp(r'\btotal\s+sugars?\b', caseSensitive: false),
-    RegExp(r'\badded\s+sugars?\b', caseSensitive: false),
-    RegExp(r'\bprotein\b', caseSensitive: false),         // standalone protein row
-    RegExp(r'\bcalories?\b', caseSensitive: false),
-    RegExp(r'\benergy\b', caseSensitive: false),
-    // Micronutrient rows
-    RegExp(r'\bsodium\s+\d', caseSensitive: false),       // "Sodium 140mg"
-    RegExp(r'\bcalcium\b', caseSensitive: false),
-    RegExp(r'\biron\b', caseSensitive: false),
-    RegExp(r'\bpotassium\b', caseSensitive: false),
-    RegExp(r'\bvitamin\s+[a-z]\b', caseSensitive: false),
-    RegExp(r'\bvitamins?\b', caseSensitive: false),
-    RegExp(r'\bminerals?\b', caseSensitive: false),
-    RegExp(r'\bcholesterol\b', caseSensitive: false),
-    // Arabic nutrition terms
-    RegExp(r'\bسعرات\b', caseSensitive: false),
-    RegExp(r'\bدهون\b', caseSensitive: false),
-    RegExp(r'\bكربوهيدرات\b', caseSensitive: false),
-    RegExp(r'\bبروتين\b', caseSensitive: false),
-    RegExp(r'\bألياف\b', caseSensitive: false),
-    RegExp(r'\bصوديوم\s+\d', caseSensitive: false),
-    RegExp(r'\bكالسيوم\b', caseSensitive: false),
-    // Percentage and daily-value markers
-    RegExp(r'\bdaily\s+value\b', caseSensitive: false),
-    RegExp(r'\b%\s*dv\b', caseSensitive: false),
-    RegExp(r'\bالقيمة اليومية\b', caseSensitive: false),
-    // Lines that are purely numbers / units  (e.g. "230 mg", "12 g", "5%")
-    RegExp(r'^\s*[\d.,]+\s*(mg|g|mcg|iu|kcal|kj|%)\s*$', caseSensitive: false),
-    // Serving-size lines
-    RegExp(r'\bserving\s+size\b', caseSensitive: false),
-    RegExp(r'\bservings?\s+per\b', caseSensitive: false),
-    RegExp(r'\bحجم\s+الحصة\b', caseSensitive: false),
-  ];
-
-  // ── Internal helpers ─────────────────────────────────────────────────────────
-
   final DatabaseHelper _db = DatabaseHelper.instance;
   final PreferencesService _prefs = PreferencesService();
 
-  /// Cleans raw OCR text by:
-  ///  1. Splitting into lines
-  ///  2. Discarding lines that match any nutrition-table pattern
-  ///  3. Collapsing multiple whitespace
-  ///  4. Removing spurious punctuation clusters
-  String cleanOcrText(String raw) {
-    final lines = raw.split(RegExp(r'[\r\n]+'));
-    final kept = <String>[];
+  final OcrCleaner _extractor = OcrCleaner();
+  final IngredientTransformer _transformer = IngredientTransformer();
+  final HealthAnalyzer _analyzer = HealthAnalyzer();
 
-    for (final line in lines) {
-      final trimmed = line.trim();
-      if (trimmed.isEmpty) continue;
-
-      // Skip if this line is a nutrition-table noise line
-      bool isNoisy = false;
-      for (final pattern in _nutritionLinePatterns) {
-        if (pattern.hasMatch(trimmed)) {
-          isNoisy = true;
-          break;
-        }
-      }
-      if (isNoisy) continue;
-
-      // Skip lines that are predominantly digits/special chars
-      // (heuristic: >60 % of non-space chars are digits or punctuation)
-      final nonSpace = trimmed.replaceAll(' ', '');
-      if (nonSpace.isNotEmpty) {
-        final numericCount =
-            nonSpace.replaceAll(RegExp(r'[^0-9%.,:/()-]'), '').length;
-        if (numericCount / nonSpace.length > 0.6) continue;
-      }
-
-      kept.add(trimmed);
-    }
-
-    // Collapse result and strip leading "Ingredients:" label (any language)
-    String result = kept.join(', ');
-    result = result.replaceAll(
-        RegExp(r'^(ingredients?|المكونات|مكونات)\s*[:：،,]?\s*',
-            caseSensitive: false),
-        '');
-    result = result.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
-    return result;
-  }
-
-  /// Tokenise the cleaned text into candidate ingredient tokens.
-  List<String> _tokenize(String cleanedText) {
-    if (cleanedText.isEmpty) return [];
-
-    String s = cleanedText
-        .replaceAll(RegExp(r'\band\b', caseSensitive: false), ',')
-        .replaceAll(RegExp(r'\bو\b'), ',')       // Arabic "and"
-        .replaceAll(RegExp(r'[.؛;]'), ',')
-        .replaceAll('&', ',');
-
-    return s
-        .split(',')
-        .map((t) => t.trim())
-        .where((t) => t.length > 1)
-        .toList();
-  }
-
-  // ── Arabic text normalisation helpers ───────────────────────────────────────
-
-  /// Strip Tashkeel (diacritics) from Arabic text.
-  /// Unicode range \u064B–\u065F covers all common diacritics + shadda/sukun.
-  static final RegExp _tashkeelRegex = RegExp(r'[\u064B-\u065F\u0670]');
-
-  /// Unify common Alef variants → bare Alef (ا).
-  static final RegExp _alefVariantsRegex = RegExp(r'[\u0622\u0623\u0624\u0625\u0627]');
-
-  /// Normalise Arabic string: strip diacritics, unify Alef, convert Taa Marbuta (ة → ه).
-  static String _normalizeArabic(String s) {
-    String result = s.replaceAll(_tashkeelRegex, '');
-    result = result.replaceAll(_alefVariantsRegex, '\u0627'); // → ا
-    result = result.replaceAll('\u0629', '\u0647');           // ة → ه
-    return result;
-  }
-
-  // ── OCR fuzzy-correction map ─────────────────────────────────────────────────
-
-  /// Maps common OCR mis-reads to their correct ingredient name.
-  /// Matching is done case-insensitively against each token.
-  static const Map<String, String> _ocrCorrections = {
-    'cucose'    : 'Glucose',
-    'glucos'    : 'Glucose',
-    'glucse'    : 'Glucose',
-    'sucros'    : 'Sucrose',
-    'surcose'   : 'Sucrose',
-    'fructos'   : 'Fructose',
-    'maltodextr': 'Maltodextrin',
-    'dextros'   : 'Dextrose',
-    'kcaine'    : '',   // gibberish → remove
-    'kca'       : '',   // trailing calorie noise
-  };
-
-  // ── Non-ingredient phrase blacklist ──────────────────────────────────────────
-  //
-  // Common OCR-caught packaging text that is NOT an ingredient.
-  // Matched case-insensitively against each token.
-  static const List<String> _nonIngredientBlacklist = [
-    // English
-    'keep in a clean', 'net weight', 'net wt', 'batch no', 'batch number',
-    'store in', 'ingredients:', 'best before', 'best by', 'exp date',
-    'expiry date', 'use by', 'manufactured by', 'product of', 'produced by',
-    'see cap', 'shake well', 'keep refrigerated', 'serving suggestion',
-    'may contain traces', 'for best quality', 'once opened',
-    'protect from', 'keep away', 'distributed by',
-    // Arabic
-    'يحفظ في', 'الوزن الصافي', 'رقم التشغيلة', 'تاريخ الانتهاء',
-    'صنع في', 'انتاج', 'تاريخ الانتاج', 'يستخدم قبل', 'الشركة المصنعة',
-    'قد يحتوي على', 'بعد الفتح', 'رقم الشهادة',
-  ];
-
-  /// Sanitize a single ingredient token for clean UI display:
-  ///  - Apply fuzzy OCR corrections.
-  ///  - Strip generic prefixes ("Ingredients", "Contains", etc.).
-  ///  - Discard non-ingredient packaging text via blacklist.
-  ///  - Remove trailing lone numbers or short gibberish fragments.
-  ///  - Returns empty string if the token should be discarded.
-  String sanitizeIngredientName(String raw) {
-    String s = raw.trim();
-
-    // Strip leading generic prefixes
-    s = s.replaceAll(
-        RegExp(r'^(ingredients?|contains?|المكونات|مكونات)\s*[:：،,]?\s*',
-            caseSensitive: false),
-        '');
-
-    // Remove trailing noise: lone digits, single chars, or short gibberish
-    // e.g. "Sugar 0", "Salt kcaine"
-    s = s.replaceAll(RegExp(r'\s+\d+\s*$'), '');         // trailing lone number
-    s = s.replaceAll(RegExp(r'\s+[a-z]{1,3}\s*$',
-        caseSensitive: false), '');                        // trailing short fragment
-
-    s = s.trim();
-    if (s.isEmpty) return '';
-
-    // ── Blacklist check: discard non-ingredient packaging text ──
-    final lower = s.toLowerCase();
-    for (final phrase in _nonIngredientBlacklist) {
-      if (lower.contains(phrase.toLowerCase())) {
-        return ''; // discard
-      }
-    }
-
-    // Apply fuzzy corrections (whole-string match on lower-cased token)
-    for (final entry in _ocrCorrections.entries) {
-      if (lower.contains(entry.key)) {
-        return entry.value; // '' means discard
-      }
-    }
-
-    // Capitalise first letter for consistency
-    return s[0].toUpperCase() + s.substring(1);
-  }
-
-  /// Run the local keyword scan. Returns discovered harmful tokens and overall
-  /// status without touching the network.
-  ({IngredientStatus status, List<IngredientAnalysis> details})
-      _runLocalScan(List<String> tokens, List<HealthCondition> conditions) {
-    final details = <IngredientAnalysis>[];
-    bool hasDanger = false;
-
-    // Build keyword map; Arabic keywords are pre-normalised for fast comparison.
-    final allKeywords = <String, HealthCondition>{};
-    for (final c in conditions) {
-      for (final kw in (_harmfulKeywords[c] ?? [])) {
-        final normalised = _isArabic(kw)
-            ? _normalizeArabic(kw)
-            : kw.toLowerCase();
-        allKeywords[normalised] = c;
-      }
-    }
-
-    for (final token in tokens) {
-      // Produce both a Latin-lower and an Arabic-normalised form of the token.
-      final lowerToken   = token.toLowerCase();
-      final arabicToken  = _normalizeArabic(token);
-      bool matched = false;
-
-      for (final entry in allKeywords.entries) {
-        final kw = entry.key;
-        // Use Arabic-normalised comparison for Arabic keywords, else Latin lower.
-        final tokenForm = _isArabic(kw) ? arabicToken : lowerToken;
-        if (tokenForm.contains(kw)) {
-          final displayName = sanitizeIngredientName(token);
-          details.add(IngredientAnalysis(
-            ingredientName: displayName.isEmpty ? token : displayName,
-            status: IngredientStatus.danger,
-            reason:
-                'Identified as harmful for ${entry.value.displayName} (local database).',
-            severity: 'High',
-          ));
-          hasDanger = true;
-          matched = true;
-          break;
-        }
-      }
-
-      if (!matched) {
-        final displayName = sanitizeIngredientName(token);
-        if (displayName.isNotEmpty) {
-          details.add(IngredientAnalysis(
-            ingredientName: displayName,
-            status: IngredientStatus.safe,
-            reason: 'Not found in local harmful-ingredients database.',
-          ));
-        }
-      }
-    }
-
-    return (
-      status: hasDanger ? IngredientStatus.danger : IngredientStatus.safe,
-      details: details,
-    );
-  }
-
-  /// Returns true if the string contains Arabic characters.
-  static bool _isArabic(String s) =>
-      RegExp(r'[\u0600-\u06FF]').hasMatch(s);
-
-  /// Build a cache key from cleaned text + condition set.
-  String _cacheKey(String cleanedText, List<HealthCondition> conditions) {
-    final condStr = (conditions.map((c) => c.name).toList()..sort()).join('|');
-    final raw = '$cleanedText::$condStr';
-    return sha256.convert(utf8.encode(raw)).toString();
-  }
-
-  /// Extract the JSON object embedded in Gemini's free-text response.
-  Map<String, dynamic>? _parseJson(String text) {
-    try {
-      final match = RegExp(r'\{.*\}', dotAll: true).firstMatch(text);
-      if (match != null) return jsonDecode(match.group(0)!);
-      return jsonDecode(text);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  // ── Public API ───────────────────────────────────────────────────────────────
-
-  /// Main entry point.
-  ///
-  /// [rawOcrText]   – raw text from ML Kit
-  /// [conditions]   – user health conditions
-  ///
-  /// Two-phase priority chain:
-  ///   **Phase 1 – Local scan (mandatory, zero-latency)**
-  ///     • Runs always, instantly.
-  ///     • If harmful keyword found → return immediately. AI is NEVER called.
-  ///
-  ///   **Phase 2 – Gemini deep inspection (conditional)**
-  ///     • Only triggered when Phase 1 result is Safe AND device is online.
-  ///     • Gemini looks for complex harmful ingredients not in the local list.
-  ///     • On timeout / error → return Safe (local confirmed nothing harmful).
+  /// Main entry point – strict **Extract → Transform → Analyze** pipeline.
   Future<ProductAnalysisResult> analyzeIngredients(
     String rawOcrText,
     List<HealthCondition> conditions,
   ) async {
-    // ── Step 0: Clean the OCR text ─────────────────────────────────────────
-    final cleanedText = cleanOcrText(rawOcrText);
+    // ═══════ EXTRACT ═══════
+    final cleanedText = _extractor.cleanOcrText(rawOcrText);
     if (cleanedText.isEmpty) {
       return const ProductAnalysisResult(
         overallStatus: IngredientStatus.safe,
         details: [],
         source: AnalysisSource.localScan,
+        localFoundHarmful: false,
       );
     }
 
-    final tokens = _tokenize(cleanedText);
+    // ═══════ TRANSFORM ═══════
+    final transformResult = _transformer.transform(cleanedText, conditions);
+    final textForAnalysis = transformResult.mergedRawText;
+    final isHeavyArabic = transformResult.isHeavyArabic;
 
-    // ── Phase 1: Local keyword scan (ALWAYS runs first) ────────────────────
-    final localResult = _runLocalScan(tokens, conditions);
+    // ═══════ ANALYZE — Phase 1: Local scan (ALWAYS first) ═══════
+    final localResult = _analyzer.analyzeLocal(transformResult.uniqueCanonicalNames, conditions);
 
-    // IMMEDIATE RETURN if local scan found anything harmful (warning OR danger).
-    // Gemini is NEVER called when a local match is found — this eliminates
-    // the "AI analysis timed out" message for products with obvious bad ingredients.
+    // IMMEDIATE RETURN if local scan found anything harmful.
+    // Gemini is NEVER called → eliminates "AI analysis timed out" message.
     if (localResult.status == IngredientStatus.danger ||
         localResult.status == IngredientStatus.warning) {
       return ProductAnalysisResult(
         overallStatus: localResult.status,
         details: localResult.details,
         source: AnalysisSource.localScan,
+        partialArabicWarning:
+            isHeavyArabic && transformResult.usedArabicGuess,
+        localFoundHarmful: true,
       );
     }
 
-    // ── Phase 2: Gemini deep inspection (only when local is Safe + online) ─
+    // ═══════ ANALYZE — Phase 2: Gemini (only when Safe + online) ═══════
     final connectivityList = await Connectivity().checkConnectivity();
     final isOnline = connectivityList.isNotEmpty &&
         !connectivityList.contains(ConnectivityResult.none);
 
-    // Offline → local said safe, so the product is safe.
     if (!isOnline) {
       return ProductAnalysisResult(
         overallStatus: IngredientStatus.safe,
         details: localResult.details,
         source: AnalysisSource.localScan,
+        partialArabicWarning:
+            isHeavyArabic && transformResult.usedArabicGuess,
+        localFoundHarmful: false, // Since this branch means local scan was safe
       );
     }
 
-    // Check product-level AI cache for this exact label.
-    final key = _cacheKey(cleanedText, conditions);
+    // Check AI cache.
+    final key = _cacheKey(textForAnalysis, conditions);
     final cached = await _db.getCachedProductAnalysis(key);
     if (cached != null) {
       final status = _statusFromString(cached['status'] as String);
@@ -488,17 +148,18 @@ class IngredientCheckerService {
         foundHarmful: harmful,
         reasonAr: cached['reason_ar'] as String? ?? '',
         analysisEn: cached['analysis_en'] as String? ?? '',
+        localFoundHarmful: false, // Since this branch means local scan was safe
       );
     }
 
-    // No cache hit — call Gemini.
+    // Call Gemini.
     final apiKey = dotenv.env['GEMINI_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) {
-      // No API key → treat as safe (local already confirmed nothing)
       return ProductAnalysisResult(
         overallStatus: IngredientStatus.safe,
         details: localResult.details,
         source: AnalysisSource.localScan,
+        localFoundHarmful: false,
       );
     }
 
@@ -508,8 +169,6 @@ class IngredientCheckerService {
     if (yob != null) {
       ageContext = ' (patient age: ${DateTime.now().year - yob})';
     }
-
-    // Build condition severity context for personalized risk
     final conditionDescriptions = conditions
         .map((c) => '${c.displayName}: ${c.description}')
         .join('; ');
@@ -531,7 +190,7 @@ Output: Return ONLY a raw JSON object with no markdown fences:
 {"status": "warning" or "safe", "found_harmful": ["..."], "reason_ar": "سبب مختصر بالعربية", "analysis_en": "Short English analysis"}
 
 Ingredients text:
-$cleanedText
+$textForAnalysis
 ''';
 
     try {
@@ -542,7 +201,7 @@ $cleanedText
 
       final response = await model
           .generateContent([Content.text(prompt)])
-          .timeout(const Duration(seconds: 30));
+          .timeout(const Duration(seconds: 45));
 
       final responseText = response.text;
       if (responseText != null) {
@@ -550,7 +209,8 @@ $cleanedText
         if (json != null &&
             json.containsKey('status') &&
             json.containsKey('found_harmful')) {
-          final aiStatus = _statusFromString(json['status'] as String? ?? 'safe');
+          final aiStatus =
+              _statusFromString(json['status'] as String? ?? 'safe');
           final foundHarmful =
               (json['found_harmful'] as List? ?? []).cast<String>();
           final reasonAr = json['reason_ar'] as String? ?? '';
@@ -559,7 +219,6 @@ $cleanedText
           final mergedDetails =
               _mergeDetails(localResult.details, foundHarmful, aiStatus);
 
-          // Cache the result so offline re-scans of the same product are instant.
           await _db.cacheProductAnalysis(
             key: key,
             conditions: conditionNames,
@@ -576,33 +235,51 @@ $cleanedText
             foundHarmful: foundHarmful,
             reasonAr: reasonAr,
             analysisEn: analysisEn,
+            localFoundHarmful: false, // Since this branch means local scan was safe
           );
         }
       }
     } on TimeoutException {
-      // Timeout — local scan was safe, so return safe with fallback source.
       return ProductAnalysisResult(
         overallStatus: IngredientStatus.safe,
         details: localResult.details,
         source: AnalysisSource.fallback,
+        localFoundHarmful: false,
       );
     } catch (_) {
       return ProductAnalysisResult(
         overallStatus: IngredientStatus.safe,
         details: localResult.details,
         source: AnalysisSource.fallback,
+        localFoundHarmful: false,
       );
     }
 
-    // Unparseable AI response — local said safe, so keep it safe.
     return ProductAnalysisResult(
       overallStatus: IngredientStatus.safe,
       details: localResult.details,
       source: AnalysisSource.fallback,
+      localFoundHarmful: false,
     );
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
+
+  String _cacheKey(String cleanedText, List<HealthCondition> conditions) {
+    final condStr = (conditions.map((c) => c.name).toList()..sort()).join('|');
+    final raw = '$cleanedText::$condStr';
+    return sha256.convert(utf8.encode(raw)).toString();
+  }
+
+  Map<String, dynamic>? _parseJson(String text) {
+    try {
+      final match = RegExp(r'\{.*\}', dotAll: true).firstMatch(text);
+      if (match != null) return jsonDecode(match.group(0)!);
+      return jsonDecode(text);
+    } catch (_) {
+      return null;
+    }
+  }
 
   IngredientStatus _statusFromString(String s) {
     switch (s.toLowerCase()) {
@@ -618,7 +295,6 @@ $cleanedText
       s == IngredientStatus.danger ? 'danger' : 'safe';
 
   /// Merge local keyword details with AI-found harmful list.
-  /// AI-flagged items that weren't caught locally are added as danger.
   List<IngredientAnalysis> _mergeDetails(
     List<IngredientAnalysis> localDetails,
     List<String> aiHarmful,
@@ -629,10 +305,28 @@ $cleanedText
     }
 
     final merged = List<IngredientAnalysis>.from(localDetails);
-    final existing = localDetails.map((d) => d.ingredientName.toLowerCase()).toSet();
 
     for (final h in aiHarmful) {
-      if (!existing.any((e) => e.contains(h.toLowerCase()) || h.toLowerCase().contains(e))) {
+      final hLower = h.toLowerCase();
+      
+      // Find if this ingredient already exists in the local details
+      final matchIndex = merged.indexWhere((d) {
+        final dLower = d.ingredientName.toLowerCase();
+        return dLower.contains(hLower) || hLower.contains(dLower);
+      });
+
+      if (matchIndex != -1) {
+        // If it exists but was marked safe by the local scan, OVERRIDE it to danger
+        if (merged[matchIndex].status != IngredientStatus.danger) {
+          merged[matchIndex] = IngredientAnalysis(
+            ingredientName: merged[matchIndex].ingredientName, // keep original name
+            status: IngredientStatus.danger,
+            reason: 'Identified as harmful by AI analysis.',
+            severity: 'High',
+          );
+        }
+      } else {
+        // If it wasn't caught locally at all, add it as a new danger item
         merged.add(IngredientAnalysis(
           ingredientName: h,
           status: IngredientStatus.danger,

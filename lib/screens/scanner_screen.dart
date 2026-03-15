@@ -53,6 +53,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   AnalysisSource _analysisSource = AnalysisSource.localScan;
   String _reasonAr = '';
   String _analysisEn = '';
+  bool _partialArabicWarning = false;
   Timer? _scanTimer;
 
   @override
@@ -164,7 +165,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
     // If the result source indicates AI was used or cached, no further action
     // needed.  If fallback, show a snackbar notification.
     if (result.source == AnalysisSource.fallback) {
-      _showFallbackSnackbar();
+      _showFallbackSnackbar(result.localFoundHarmful);
     }
   }
 
@@ -176,6 +177,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
       _analysisSource = result.source;
       _reasonAr = result.reasonAr;
       _analysisEn = result.analysisEn;
+      _partialArabicWarning = result.partialArabicWarning;
       _isProcessing = false;
       _isAiProcessing = false;
 
@@ -193,23 +195,33 @@ class _ScannerScreenState extends State<ScannerScreen> {
     });
   }
 
-  void _showFallbackSnackbar() {
+  void _showFallbackSnackbar(bool localFoundHarmful) {
     if (!mounted) return;
+
+    final isPositive = localFoundHarmful;
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Row(
+        content: Row(
           children: [
-            Icon(Icons.wifi_off, color: Colors.white, size: 18),
-            SizedBox(width: 8),
+            Icon(
+              isPositive ? Icons.check_circle : Icons.wifi_off,
+              color: Colors.white,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: Text(
-                'AI analysis timed out. Showing local scan result.',
-                style: TextStyle(color: Colors.white),
+                isPositive
+                    ? 'Instant Scan Complete. Found local results.'
+                    : 'AI analysis timed out. Showing local scan result.',
+                style: const TextStyle(color: Colors.white),
               ),
             ),
           ],
         ),
-        backgroundColor: Colors.deepOrange[700],
+        backgroundColor:
+            isPositive ? Colors.green[700] : Colors.deepOrange[700],
         duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -417,6 +429,32 @@ class _ScannerScreenState extends State<ScannerScreen> {
             ),
           ),
           const SizedBox(height: 16),
+
+          // Partial Arabic warning
+          if (_partialArabicWarning) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber[50],
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber[300]!),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.translate, color: Colors.amber[800], size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Analysis based on partial Arabic text. '
+                      'Scan English ingredients if available for 100% accuracy.',
+                      style: TextStyle(fontSize: 12, color: Colors.amber[900]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
 
           // Bilingual AI summary (only when available)
           if (_analysisEn.isNotEmpty || _reasonAr.isNotEmpty) ...[
