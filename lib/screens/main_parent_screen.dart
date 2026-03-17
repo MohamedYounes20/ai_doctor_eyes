@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../app_theme.dart';
 import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
+import 'alternatives_screen.dart';
 import 'profile_screen.dart';
 import 'scanner_screen.dart';
 import 'settings_screen.dart';
@@ -51,6 +52,7 @@ class _MainParentScreenState extends State<MainParentScreen> {
         isVisible: _currentIndex == 1,
         onScanComplete: () => _scanRefreshTrigger.value++,
       ),
+      const AlternativesScreen(),
       const SettingsScreen(),
     ];
   }
@@ -78,6 +80,10 @@ class _MainParentScreenState extends State<MainParentScreen> {
           BottomNavigationBarItem(
             icon: Icon(Icons.document_scanner_outlined, size: 28),
             label: 'Scan',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.recommend),
+            label: 'Healthy',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.settings_outlined, size: 28),

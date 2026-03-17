@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 import '../models/health_condition.dart';
 import '../logic/extractor/ocr_cleaner.dart';
 import '../logic/transformer/ingredient_transformer.dart';
@@ -18,9 +18,9 @@ enum IngredientStatus { safe, warning, danger }
 /// Indicates how the final result was produced.
 enum AnalysisSource {
   localScan,   // Offline keyword matching only
-  aiAnalysis,  // Fresh Gemini API call
+  aiAnalysis,  // Fresh gemini API call
   aiCached,    // Retrieved from local DB cache
-  fallback,    // Gemini timed-out/failed → fell back to local scan
+  fallback,    // gemini timed-out/failed → fell back to local scan
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
@@ -44,7 +44,7 @@ class ProductAnalysisResult {
   final List<IngredientAnalysis> details;
   final AnalysisSource source;
 
-  /// Bilingual summary fields (populated by Gemini; empty for local-only scans)
+  /// Bilingual summary fields (populated by gemini; empty for local-only scans)
   final List<String> foundHarmful;
   final String reasonAr;
   final String analysisEn;
@@ -105,7 +105,7 @@ class IngredientCheckerService {
     final localResult = _analyzer.analyzeLocal(transformResult.uniqueCanonicalNames, conditions);
 
     // IMMEDIATE RETURN if local scan found anything harmful.
-    // Gemini is NEVER called → eliminates "AI analysis timed out" message.
+    // gemini is NEVER called → eliminates "AI analysis timed out" message.
     if (localResult.status == IngredientStatus.danger ||
         localResult.status == IngredientStatus.warning) {
       return ProductAnalysisResult(
@@ -118,7 +118,7 @@ class IngredientCheckerService {
       );
     }
 
-    // ═══════ ANALYZE — Phase 2: Gemini (only when Safe + online) ═══════
+    // ═══════ ANALYZE — Phase 2: gemini (only when Safe + online) ═══════
     final connectivityList = await Connectivity().checkConnectivity();
     final isOnline = connectivityList.isNotEmpty &&
         !connectivityList.contains(ConnectivityResult.none);
@@ -152,7 +152,7 @@ class IngredientCheckerService {
       );
     }
 
-    // Call Gemini.
+    // Call gemini.
     final apiKey = dotenv.env['GEMINI_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) {
       return ProductAnalysisResult(
@@ -186,57 +186,88 @@ Personalized Risk: This patient has $conditionNames$ageContext. Condition detail
 
 Note: Basic harmful keywords have already been screened locally. Focus on complex, compound, or less-obvious harmful ingredients.
 
-Output: Return ONLY a raw JSON object with no markdown fences:
+Output: Return ONLY a raw JSON object with no markdown fences. Do not include any introductory text. Keep analysis brief to avoid truncation:
 {"status": "warning" or "safe", "found_harmful": ["..."], "reason_ar": "سبب مختصر بالعربية", "analysis_en": "Short English analysis"}
 
 Ingredients text:
 $textForAnalysis
 ''';
 
-    try {
-      final model = GenerativeModel(
-        model: 'gemini-1.5-flash',
-        apiKey: apiKey,
-      );
+    // ── Direct REST call to Gemini v1beta ─────────────────────────────────
+    const geminiEndpoint =
+        'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
 
-      final response = await model
-          .generateContent([Content.text(prompt)])
+    try {
+      final uri = Uri.parse('$geminiEndpoint?key=$apiKey');
+      final body = jsonEncode({
+        'contents': [
+          {
+            'parts': [
+              {'text': prompt}
+            ]
+          }
+        ],
+        'generationConfig': {
+          'temperature': 0.2,
+          'maxOutputTokens': 2048,
+        },
+      });
+
+      final httpResponse = await http
+          .post(
+            uri,
+            headers: {'Content-Type': 'application/json'},
+            body: body,
+          )
           .timeout(const Duration(seconds: 45));
 
-      final responseText = response.text;
-      if (responseText != null) {
-        final json = _parseJson(responseText);
-        if (json != null &&
-            json.containsKey('status') &&
-            json.containsKey('found_harmful')) {
-          final aiStatus =
-              _statusFromString(json['status'] as String? ?? 'safe');
-          final foundHarmful =
-              (json['found_harmful'] as List? ?? []).cast<String>();
-          final reasonAr = json['reason_ar'] as String? ?? '';
-          final analysisEn = json['analysis_en'] as String? ?? '';
+      if (httpResponse.statusCode == 200) {
+        final decoded =
+            jsonDecode(httpResponse.body) as Map<String, dynamic>;
+        final candidates = decoded['candidates'] as List?;
+        final content =
+            candidates?.isNotEmpty == true
+                ? candidates![0]['content'] as Map<String, dynamic>?
+                : null;
+        final parts = content?['parts'] as List?;
+        final responseText = parts?.isNotEmpty == true
+            ? parts![0]['text'] as String?
+            : null;
 
-          final mergedDetails =
-              _mergeDetails(localResult.details, foundHarmful, aiStatus);
+        if (responseText != null) {
+          final json = _parseJson(responseText);
+          if (json != null &&
+              json.containsKey('status') &&
+              json.containsKey('found_harmful')) {
+            final aiStatus =
+                _statusFromString(json['status'] as String? ?? 'safe');
+            final foundHarmful =
+                (json['found_harmful'] as List? ?? []).cast<String>();
+            final reasonAr = json['reason_ar'] as String? ?? '';
+            final analysisEn = json['analysis_en'] as String? ?? '';
 
-          await _db.cacheProductAnalysis(
-            key: key,
-            conditions: conditionNames,
-            status: _statusToString(aiStatus),
-            foundHarmful: jsonEncode(foundHarmful),
-            reasonAr: reasonAr,
-            analysisEn: analysisEn,
-          );
+            final mergedDetails =
+                _mergeDetails(localResult.details, foundHarmful, aiStatus);
 
-          return ProductAnalysisResult(
-            overallStatus: aiStatus,
-            details: mergedDetails,
-            source: AnalysisSource.aiAnalysis,
-            foundHarmful: foundHarmful,
-            reasonAr: reasonAr,
-            analysisEn: analysisEn,
-            localFoundHarmful: false, // Since this branch means local scan was safe
-          );
+            await _db.cacheProductAnalysis(
+              key: key,
+              conditions: conditionNames,
+              status: _statusToString(aiStatus),
+              foundHarmful: jsonEncode(foundHarmful),
+              reasonAr: reasonAr,
+              analysisEn: analysisEn,
+            );
+
+            return ProductAnalysisResult(
+              overallStatus: aiStatus,
+              details: mergedDetails,
+              source: AnalysisSource.aiAnalysis,
+              foundHarmful: foundHarmful,
+              reasonAr: reasonAr,
+              analysisEn: analysisEn,
+              localFoundHarmful: false,
+            );
+          }
         }
       }
     } on TimeoutException {
@@ -272,10 +303,30 @@ $textForAnalysis
   }
 
   Map<String, dynamic>? _parseJson(String text) {
+    final start = text.indexOf('{');
+    final end = text.lastIndexOf('}');
+
+    if (start != -1) {
+      String slice;
+      if (end != -1 && end > start) {
+        slice = text.substring(start, end + 1).trim();
+      } else {
+        // Truncated response: manually append the closing brace
+        slice = '${text.substring(start).trim()}}';
+      }
+
+      try {
+        return jsonDecode(slice) as Map<String, dynamic>;
+      } catch (e) {
+        // ignore: avoid_print
+        print('[IngredientCheckerService] _parseJson failed.\nSlice:\n$slice\nError: $e');
+        return null;
+      }
+    }
+    
+    // Fallback if no brackets found (unlikely)
     try {
-      final match = RegExp(r'\{.*\}', dotAll: true).firstMatch(text);
-      if (match != null) return jsonDecode(match.group(0)!);
-      return jsonDecode(text);
+      return jsonDecode(text.trim()) as Map<String, dynamic>;
     } catch (_) {
       return null;
     }
