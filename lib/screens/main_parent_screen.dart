@@ -7,7 +7,7 @@ import 'profile_screen.dart';
 import 'scanner_screen.dart';
 import 'settings_screen.dart';
 
-/// Main screen with BottomNavigationBar: Profile, Scan, Settings.
+/// Main screen with M3 NavigationBar: Profile, Scan, Ideas, Settings.
 class MainParentScreen extends StatefulWidget {
   const MainParentScreen({super.key});
 
@@ -59,37 +59,57 @@ class _MainParentScreenState extends State<MainParentScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
         children: _buildPages(),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        selectedItemColor: AppTheme.primaryColor,
-        unselectedItemColor: Colors.grey,
-        selectedFontSize: AppTheme.bodyFontSize,
-        unselectedFontSize: AppTheme.bodyFontSize,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person_outline, size: 28),
-            label: 'Profile',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.document_scanner_outlined, size: 28),
-            label: 'Scan',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.recommend),
-            label: 'Healthy',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined, size: 28),
-            label: 'Settings',
-          ),
-        ],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF0D1B35) : Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.4)
+                  : AppTheme.navyColor.withOpacity(0.08),
+              blurRadius: 16,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (i) => setState(() => _currentIndex = i),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          animationDuration: const Duration(milliseconds: 300),
+          destinations: [
+            NavigationDestination(
+              icon: const Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person, color: cs.primary),
+              label: 'Profile',
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.document_scanner_outlined),
+              selectedIcon: Icon(Icons.document_scanner, color: cs.primary),
+              label: 'Scan',
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.lightbulb_outline),
+              selectedIcon: Icon(Icons.lightbulb, color: cs.primary),
+              label: 'Ideas',
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.settings_outlined),
+              selectedIcon: Icon(Icons.settings, color: cs.primary),
+              label: 'Settings',
+            ),
+          ],
+        ),
       ),
     );
   }

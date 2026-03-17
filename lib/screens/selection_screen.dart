@@ -4,7 +4,7 @@ import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
 import 'main_parent_screen.dart';
 
-/// Selection Screen: Grid layout, Blue #0052CC theme.
+/// Selection Screen: Grid layout, Navy/Mint theme.
 /// Navigates to MainParentScreen when done, or back if in update mode.
 /// Supports multiple selection of conditions.
 class SelectionScreen extends StatefulWidget {
@@ -73,13 +73,14 @@ class _SelectionScreenState extends State<SelectionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppTheme.spaceBlack : AppTheme.icyWhite;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: bg,
       appBar: AppBar(
         title: const Text('Select Your Conditions'),
         centerTitle: true,
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -88,7 +89,7 @@ class _SelectionScreenState extends State<SelectionScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
               Text(
                 'Select Your Conditions',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -99,57 +100,60 @@ class _SelectionScreenState extends State<SelectionScreen> {
               Text(
                 'Choose one or more health conditions to personalize your food scanning experience',
                 style: TextStyle(
-                  fontSize: AppTheme.bodyFontSize,
-                  color: Colors.grey.shade600,
+                  fontSize: AppTheme.bodyFontSize - 2,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.55)
+                      : Colors.grey.shade600,
                 ),
               ),
               const SizedBox(height: 32),
-              // 2x2 Grid - shrinkWrap + NeverScrollableScrollPhysics for parent scroll
+              // 2×2 Grid
               GridView.count(
                 shrinkWrap: true,
                 crossAxisCount: 2,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
                 childAspectRatio: 0.85,
                 physics: const NeverScrollableScrollPhysics(),
                 children: [
-                    for (final (condition, icon, color) in _conditionConfig)
-                      _ConditionCard(
-                        condition: condition,
-                        icon: icon,
-                        color: color,
-                        selected: _selectedConditions.contains(condition),
-                        onTap: () => _toggleCondition(condition),
-                      ),
+                  for (final (condition, icon, color) in _conditionConfig)
+                    _ConditionCard(
+                      condition: condition,
+                      icon: icon,
+                      color: color,
+                      selected: _selectedConditions.contains(condition),
+                      onTap: () => _toggleCondition(condition),
+                      isDark: isDark,
+                    ),
                 ],
               ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: _selectedConditions.isNotEmpty && !_loading
-                    ? _handleGetStarted
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryColor,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Text(
-                  _loading ? 'Saving...' : 'Get Started',
-                  style: const TextStyle(
-                    fontSize: AppTheme.bodyFontSize,
-                    fontWeight: FontWeight.bold,
+              const SizedBox(height: 28),
+              SizedBox(
+                height: 54,
+                child: ElevatedButton(
+                  onPressed:
+                      _selectedConditions.isNotEmpty && !_loading
+                          ? _handleGetStarted
+                          : null,
+                  child: Text(
+                    _loading ? 'Saving...' : 'Get Started',
+                    style: const TextStyle(
+                      fontSize: AppTheme.bodyFontSize,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
               if (_selectedConditions.isEmpty)
                 Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 10),
                   child: Text(
                     'Please select at least one condition',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: isDark
+                            ? Colors.white.withOpacity(0.4)
+                            : Colors.grey.shade500),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -168,6 +172,7 @@ class _ConditionCard extends StatelessWidget {
   final Color color;
   final bool selected;
   final VoidCallback onTap;
+  final bool isDark;
 
   const _ConditionCard({
     required this.condition,
@@ -175,32 +180,61 @@ class _ConditionCard extends StatelessWidget {
     required this.color,
     required this.selected,
     required this.onTap,
+    required this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cardBg = isDark
+        ? (selected ? AppTheme.navyColor : AppTheme.navyCard)
+        : Colors.white;
+    final selectedBorderColor =
+        isDark ? AppTheme.neonMint : AppTheme.navyColor;
+    final unselBorderColor = isDark
+        ? Colors.white.withOpacity(0.08)
+        : Colors.grey.shade200;
+
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          color: cardBg,
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: selected ? AppTheme.primaryColor : Colors.grey.shade300,
-            width: selected ? 3 : 1,
+            color: selected ? selectedBorderColor : unselBorderColor,
+            width: selected ? 2 : 1,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(selected ? 0.35 : 0.2)
+                  : AppTheme.navyColor.withOpacity(selected ? 0.12 : 0.04),
+              blurRadius: selected ? 16 : 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 48, color: color),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 30, color: color),
+            ),
             const SizedBox(height: 12),
             Text(
               condition.displayName,
-              style: const TextStyle(
-                fontSize: AppTheme.bodyFontSize,
+              style: TextStyle(
+                fontSize: AppTheme.bodyFontSize - 2,
                 fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : AppTheme.navyColor,
               ),
               textAlign: TextAlign.center,
             ),
@@ -208,8 +242,10 @@ class _ConditionCard extends StatelessWidget {
             Text(
               condition.description,
               style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
+                fontSize: 13,
+                color: isDark
+                    ? Colors.white.withOpacity(0.5)
+                    : Colors.grey.shade600,
               ),
               textAlign: TextAlign.center,
               maxLines: 2,
@@ -219,9 +255,13 @@ class _ConditionCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.only(top: 8),
                 child: CircleAvatar(
-                  radius: 12,
-                  backgroundColor: AppTheme.primaryColor,
-                  child: const Icon(Icons.check, color: Colors.white, size: 18),
+                  radius: 11,
+                  backgroundColor: isDark ? AppTheme.neonMint : AppTheme.navyColor,
+                  child: Icon(
+                    Icons.check,
+                    color: isDark ? AppTheme.spaceBlack : Colors.white,
+                    size: 14,
+                  ),
                 ),
               ),
           ],

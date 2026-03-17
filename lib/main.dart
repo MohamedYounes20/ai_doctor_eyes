@@ -8,6 +8,11 @@ import 'screens/selection_screen.dart';
 import 'screens/welcome_screen.dart';
 import 'services/preferences_service.dart';
 
+/// Global theme-mode notifier — read/write from any screen via
+/// `themeModeNotifier.value = ThemeMode.dark`.
+final ValueNotifier<ThemeMode> themeModeNotifier =
+    ValueNotifier(ThemeMode.light);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
@@ -25,11 +30,16 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'AI Doctor Eyes',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.theme,
-      home: const InitialRoute(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeModeNotifier,
+      builder: (_, mode, __) => MaterialApp(
+        title: 'AI Doctor Eyes',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: mode,
+        home: const InitialRoute(),
+      ),
     );
   }
 }
@@ -76,15 +86,19 @@ class _InitialRouteState extends State<InitialRoute> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(color: AppTheme.primaryColor),
-            SizedBox(height: 20),
-            Text('Loading...',
-                style: TextStyle(fontSize: AppTheme.bodyFontSize)),
+            CircularProgressIndicator(
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Loading...',
+              style: TextStyle(fontSize: AppTheme.bodyFontSize),
+            ),
           ],
         ),
       ),

@@ -46,8 +46,16 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? AppTheme.spaceBlack : AppTheme.icyWhite;
+    final inputFill = isDark ? AppTheme.navyCard : Colors.white;
+    final labelColor = isDark ? Colors.white70 : AppTheme.navyColor;
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.08)
+        : Colors.grey.shade300;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: bg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -57,22 +65,41 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 32),
-                // Logo placeholder
+
+                // ── Logo
                 Center(
                   child: Container(
-                    width: 80,
-                    height: 80,
+                    width: 84,
+                    height: 84,
                     decoration: BoxDecoration(
-                      color: AppTheme.primaryColor,
-                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? [const Color(0xFF0D1B35), const Color(0xFF1A2C4A)]
+                            : [AppTheme.navyColor, const Color(0xFF243B6E)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: (isDark ? AppTheme.neonMint : AppTheme.navyColor)
+                              .withOpacity(0.3),
+                          blurRadius: 20,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.visibility,
-                        color: Colors.white, size: 48),
+                    child: Icon(
+                      Icons.visibility,
+                      color: isDark ? AppTheme.neonMint : AppTheme.mintColor,
+                      size: 44,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 28),
+
                 Text(
-                  'Welcome to AI Doctor Eyes',
+                  'Welcome to\nAI Doctor Eyes',
                   style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                       ),
@@ -80,19 +107,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tell us about yourself',
+                  'Tell us about yourself to get started',
                   style: TextStyle(
-                    fontSize: AppTheme.bodyFontSize,
-                    color: Colors.grey.shade600,
+                    fontSize: AppTheme.bodyFontSize - 2,
+                    color: isDark
+                        ? Colors.white.withOpacity(0.55)
+                        : Colors.grey.shade600,
                   ),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 40),
+
+                // ── Full Name
                 Text(
                   'Full Name',
-                  style: const TextStyle(
-                    fontSize: AppTheme.bodyFontSize,
-                    fontWeight: FontWeight.w600,
+                  style: TextStyle(
+                    fontSize: AppTheme.bodyFontSize - 2,
+                    fontWeight: FontWeight.w700,
+                    color: labelColor,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -100,36 +132,61 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   controller: _nameController,
                   decoration: InputDecoration(
                     hintText: 'Enter your full name',
-                    prefixIcon: const Icon(Icons.person_outline),
+                    prefixIcon: Icon(
+                      Icons.person_outline,
+                      color: isDark ? Colors.white38 : Colors.grey,
+                    ),
+                    filled: true,
+                    fillColor: inputFill,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(color: borderColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide(
+                          color: isDark ? AppTheme.neonMint : AppTheme.navyColor,
+                          width: 1.5),
                     ),
                   ),
-                  style: const TextStyle(fontSize: AppTheme.bodyFontSize),
+                  style: TextStyle(
+                      fontSize: AppTheme.bodyFontSize,
+                      color: isDark ? Colors.white : AppTheme.navyColor),
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 24),
+
+                // ── Year of Birth
                 Text(
                   'Year of Birth',
-                  style: const TextStyle(
-                    fontSize: AppTheme.bodyFontSize,
-                    fontWeight: FontWeight.w600,
+                  style: TextStyle(
+                    fontSize: AppTheme.bodyFontSize - 2,
+                    fontWeight: FontWeight.w700,
+                    color: labelColor,
                   ),
                 ),
                 const SizedBox(height: 8),
                 InkWell(
                   onTap: _pickYear,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 16),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade400),
-                      borderRadius: BorderRadius.circular(12),
+                      color: inputFill,
+                      border: Border.all(color: borderColor),
+                      borderRadius: BorderRadius.circular(14),
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.calendar_today_outlined),
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          color: isDark ? Colors.white38 : Colors.grey,
+                        ),
                         const SizedBox(width: 12),
                         Text(
                           _yearOfBirth != null
@@ -138,12 +195,15 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           style: TextStyle(
                             fontSize: AppTheme.bodyFontSize,
                             color: _yearOfBirth != null
-                                ? Colors.black
-                                : Colors.grey.shade600,
+                                ? (isDark ? Colors.white : AppTheme.navyColor)
+                                : (isDark
+                                    ? Colors.white38
+                                    : Colors.grey.shade500),
                           ),
                         ),
                         const Spacer(),
-                        const Icon(Icons.keyboard_arrow_down),
+                        Icon(Icons.keyboard_arrow_down,
+                            color: isDark ? Colors.white38 : Colors.grey),
                       ],
                     ),
                   ),
@@ -155,26 +215,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       'Age: ${_prefs.getAgeFromYearOfBirth(_yearOfBirth!)} years',
                       style: TextStyle(
                         fontSize: 14,
-                        color: Colors.grey.shade600,
+                        color: isDark
+                            ? AppTheme.neonMint.withOpacity(0.8)
+                            : AppTheme.mintColor,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                const SizedBox(height: 40),
-                ElevatedButton(
-                  onPressed: _canProceed && !_saving ? _onNext : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    _saving ? 'Saving...' : 'Next: Choose My Conditions',
-                    style: const TextStyle(
-                      fontSize: AppTheme.bodyFontSize,
-                      fontWeight: FontWeight.bold,
+                const SizedBox(height: 44),
+
+                // ── CTA
+                SizedBox(
+                  height: 54,
+                  child: ElevatedButton(
+                    onPressed: _canProceed && !_saving ? _onNext : null,
+                    child: Text(
+                      _saving ? 'Saving...' : 'Next: Choose My Conditions',
+                      style: const TextStyle(
+                        fontSize: AppTheme.bodyFontSize,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -183,7 +243,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   'Please fill in all fields to continue',
                   style: TextStyle(
                     fontSize: 14,
-                    color: Colors.grey.shade600,
+                    color: isDark
+                        ? Colors.white.withOpacity(0.35)
+                        : Colors.grey.shade500,
                   ),
                   textAlign: TextAlign.center,
                 ),

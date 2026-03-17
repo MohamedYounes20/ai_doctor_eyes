@@ -334,12 +334,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
   // ── Bottom Sheet ──────────────────────────────────────────────────────────
 
   void _showResultBottomSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: isDark ? AppTheme.navyCard : Colors.white,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => DraggableScrollableSheet(
         expand: false,
@@ -353,6 +354,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Widget _buildBottomSheetContent(ScrollController scrollController) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     Color color = AppTheme.safeColor;
     IconData icon = Icons.check_circle;
     String statusText = 'SAFE';
@@ -372,174 +374,250 @@ class _ScannerScreenState extends State<ScannerScreen> {
         .where((d) => _isValidIngredientName(d.ingredientName))
         .toList();
 
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: ListView(
-        controller: scrollController,
-        children: [
-          // Handle bar
-          Center(
-            child: Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
+    final sheetBg = isDark ? AppTheme.navyCard : Colors.white;
+    final textColor = isDark ? Colors.white : AppTheme.navyColor;
+    final subColor = isDark ? Colors.white.withOpacity(0.6) : Colors.grey.shade600;
+
+    return Container(
+      color: sheetBg,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+        child: ListView(
+          controller: scrollController,
+          children: [
+            // Handle bar
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.2) : Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // Title
-          Text(
-            'Analysis Result',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.bold),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-
-          // Source badge
-          Center(child: _buildSourceBadge()),
-          const SizedBox(height: 16),
-
-          // Status banner
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(12),
+            // Title
+            Text(
+              'Analysis Result',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: textColor,
+                  ),
+              textAlign: TextAlign.center,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, color: Colors.white),
-                const SizedBox(width: 8),
-                Text(
-                  statusText,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: AppTheme.titleFontSize,
+            const SizedBox(height: 4),
+
+            // Source badge
+            Center(child: _buildSourceBadge()),
+            const SizedBox(height: 16),
+
+            // Status banner
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [color, color.withOpacity(0.75)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.35),
+                    blurRadius: 12,
+                    offset: const Offset(0, 5),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: Colors.white, size: 26),
+                  const SizedBox(width: 10),
+                  Text(
+                    statusText,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: AppTheme.titleFontSize,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Partial Arabic warning
+            if (_partialArabicWarning) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.warningColor.withOpacity(isDark ? 0.12 : 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppTheme.warningColor.withOpacity(0.4)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.translate, color: AppTheme.warningColor, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Analysis based on partial Arabic text. '
+                        'Scan English ingredients if available for 100% accuracy.',
+                        style: TextStyle(fontSize: 13, color: subColor),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Bilingual AI summary (only when available)
+            if (_analysisEn.isNotEmpty || _reasonAr.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? AppTheme.neonMint.withOpacity(0.08)
+                      : AppTheme.mintColor.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                      color: isDark
+                          ? AppTheme.neonMint.withOpacity(0.25)
+                          : AppTheme.mintColor.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.psychology,
+                            color: isDark ? AppTheme.neonMint : AppTheme.mintColor,
+                            size: 18),
+                        const SizedBox(width: 6),
+                        Text(
+                          'AI Analysis',
+                          style: TextStyle(
+                            color: isDark ? AppTheme.neonMint : AppTheme.mintColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_analysisEn.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _analysisEn,
+                        style: TextStyle(fontSize: 13, color: subColor),
+                      ),
+                    ],
+                    if (_reasonAr.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _reasonAr,
+                        textDirection: TextDirection.rtl,
+                        style: TextStyle(fontSize: 13, color: subColor),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // Ingredient issues
+            Text(
+              'Ingredient Issues',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: textColor,
+                  ),
+            ),
+            const SizedBox(height: 10),
+
+            if (issues.isEmpty)
+              Text(
+                'No harmful ingredients found.',
+                style: TextStyle(
+                    fontSize: AppTheme.bodyFontSize, color: subColor),
+              )
+            else
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: issues.map((ing) => _buildIngredientPill(ing)).toList(),
+              ),
+
+            const SizedBox(height: 16),
+
+            // Detailed list below pills
+            if (issues.isNotEmpty)
+              ...issues.map((ing) => _buildIssueRow(ing)),
+
+            const SizedBox(height: 24),
+
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? AppTheme.neonMint : AppTheme.navyColor,
+                  foregroundColor: isDark ? AppTheme.spaceBlack : Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text(
+                  'Close',
+                  style: TextStyle(
+                    fontSize: AppTheme.bodyFontSize,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
+              ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Color-coded pill chip for a single ingredient issue.
+  Widget _buildIngredientPill(IngredientAnalysis ing) {
+    final isDanger = ing.status == IngredientStatus.danger;
+    final bg = isDanger
+        ? AppTheme.dangerColor.withOpacity(0.12)
+        : AppTheme.warningColor.withOpacity(0.12);
+    final border = isDanger
+        ? AppTheme.dangerColor.withOpacity(0.4)
+        : AppTheme.warningColor.withOpacity(0.4);
+    final textColor = isDanger ? AppTheme.dangerColor : AppTheme.warningColor;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(50),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isDanger ? Icons.warning_rounded : Icons.info_outline,
+            color: textColor,
+            size: 14,
           ),
-          const SizedBox(height: 16),
-
-          // Partial Arabic warning
-          if (_partialArabicWarning) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber[50],
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.amber[300]!),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.translate, color: Colors.amber[800], size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Analysis based on partial Arabic text. '
-                      'Scan English ingredients if available for 100% accuracy.',
-                      style: TextStyle(fontSize: 12, color: Colors.amber[900]),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Bilingual AI summary (only when available)
-          if (_analysisEn.isNotEmpty || _reasonAr.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue[50],
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.blue[200]!),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.psychology, color: Colors.blue, size: 18),
-                      const SizedBox(width: 6),
-                      Text(
-                        'AI Analysis',
-                        style: TextStyle(
-                          color: Colors.blue[900],
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_analysisEn.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _analysisEn,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
-                    ),
-                  ],
-                  if (_reasonAr.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _reasonAr,
-                      textDirection: TextDirection.rtl,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-
-          // Ingredient issues
+          const SizedBox(width: 5),
           Text(
-            'Ingredient Issues',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 8),
-
-          if (issues.isEmpty)
-            const Text(
-              'No harmful ingredients found.',
-              style: TextStyle(fontSize: AppTheme.bodyFontSize),
-            )
-          else
-            ...issues.map((ing) => _buildIssueRow(ing)),
-
-          const SizedBox(height: 24),
-
-          SizedBox(
-            height: 48,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'Close',
-                style: TextStyle(
-                  fontSize: AppTheme.bodyFontSize,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            ing.ingredientName,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
@@ -548,7 +626,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Widget _buildIssueRow(IngredientAnalysis ing) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDanger = ing.status == IngredientStatus.danger;
+    final iconColor = isDanger ? AppTheme.dangerColor : AppTheme.warningColor;
+    final textColor = isDark ? Colors.white : AppTheme.navyColor;
+    final subColor = isDark ? Colors.white.withOpacity(0.6) : Colors.grey.shade700;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -556,7 +638,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         children: [
           Icon(
             isDanger ? Icons.warning_rounded : Icons.error_outline,
-            color: isDanger ? Colors.red : Colors.orange,
+            color: iconColor,
             size: 20,
           ),
           const SizedBox(width: 8),
@@ -569,9 +651,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                     Expanded(
                       child: Text(
                         ing.ingredientName,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: AppTheme.bodyFontSize,
                           fontWeight: FontWeight.bold,
+                          color: textColor,
                         ),
                       ),
                     ),
@@ -580,19 +663,16 @@ class _ScannerScreenState extends State<ScannerScreen> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: (ing.severity?.toLowerCase() == 'high')
-                              ? Colors.red[100]
-                              : Colors.orange[100],
+                          color: iconColor.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: iconColor.withOpacity(0.3)),
                         ),
                         child: Text(
                           ing.severity!,
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: (ing.severity?.toLowerCase() == 'high')
-                                ? Colors.red[900]
-                                : Colors.orange[900],
+                            color: iconColor,
                           ),
                         ),
                       ),
@@ -600,7 +680,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
                 ),
                 Text(
                   ing.reason,
-                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  style: TextStyle(fontSize: 13, color: subColor),
                 ),
               ],
             ),
@@ -626,7 +706,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Widget _badge(String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
         decoration: BoxDecoration(
           color: color.withOpacity(0.12),
           border: Border.all(color: color.withOpacity(0.5)),
@@ -650,11 +730,12 @@ class _ScannerScreenState extends State<ScannerScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('AI Food Scanner'),
-        backgroundColor: AppTheme.primaryColor,
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.photo_library),
+            icon: const Icon(Icons.photo_library_outlined),
             tooltip: 'Scan from gallery',
             onPressed: _pickFromGallery,
           ),
@@ -681,20 +762,46 @@ class _ScannerScreenState extends State<ScannerScreen> {
               ),
             ),
 
+          // Corner-bracket viewfinder overlay
+          if (_isInitialized)
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _ScannerFramePainter(
+                  color: _hasScanned
+                      ? (_status == IngredientStatus.safe
+                          ? AppTheme.safeColor
+                          : _status == IngredientStatus.warning
+                              ? AppTheme.warningColor
+                              : AppTheme.dangerColor)
+                      : AppTheme.neonMint,
+                ),
+              ),
+            ),
+
           // AI processing overlay – ONLY shown when online AI call is ongoing
           if (_isAiProcessing)
             Positioned.fill(
               child: Container(
                 color: Colors.black54,
-                child: const Center(
+                child: Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(color: Colors.white),
-                      SizedBox(height: 16),
-                      Text(
-                        '🤖 Deep AI Analysis…',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
+                      CircularProgressIndicator(
+                          color: AppTheme.neonMint),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          '🤖 Deep AI Analysis…',
+                          style:
+                              TextStyle(color: Colors.white, fontSize: 16),
+                        ),
                       ),
                     ],
                   ),
@@ -704,7 +811,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
           // Status banner at top
           Positioned(
-            top: 20,
+            top: 16,
             left: 20,
             right: 20,
             child: _buildStatusBanner(),
@@ -713,17 +820,17 @@ class _ScannerScreenState extends State<ScannerScreen> {
           // Inline issues list
           if (_hasScanned && _status != IngredientStatus.safe)
             Positioned(
-              bottom: 90,
-              left: 20,
-              right: 20,
+              bottom: 80,
+              left: 16,
+              right: 16,
               child: _buildIngredientDetailsList(),
             ),
 
           // Bottom instructions
           Positioned(
-            bottom: 20,
-            left: 20,
-            right: 20,
+            bottom: 16,
+            left: 16,
+            right: 16,
             child: _buildInstructions(),
           ),
         ],
@@ -732,9 +839,9 @@ class _ScannerScreenState extends State<ScannerScreen> {
   }
 
   Widget _buildStatusBanner() {
-    Color color = AppTheme.primaryColor;
+    Color color = AppTheme.neonMint;
     String label = 'SCANNING';
-    IconData icon = Icons.document_scanner;
+    IconData icon = Icons.document_scanner_outlined;
 
     if (_hasScanned) {
       if (_status == IngredientStatus.danger) {
@@ -752,39 +859,42 @@ class _ScannerScreenState extends State<ScannerScreen> {
       }
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: const [
-          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 4))
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: Colors.white, size: 28),
-              const SizedBox(width: 10),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  letterSpacing: 2,
-                ),
-              ),
-            ],
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.black.withOpacity(0.72), Colors.black.withOpacity(0.56)],
           ),
-          if (_hasScanned) ...[
-            const SizedBox(height: 4),
-            _buildSourceBadgeCompact(),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.6), width: 1.5),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, color: color, size: 26),
+                const SizedBox(width: 10),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                    letterSpacing: 3,
+                  ),
+                ),
+              ],
+            ),
+            if (_hasScanned) ...[
+              const SizedBox(height: 4),
+              _buildSourceBadgeCompact(),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
@@ -815,79 +925,87 @@ class _ScannerScreenState extends State<ScannerScreen> {
     if (issues.isEmpty) return const SizedBox();
 
     final displayIssues = issues.take(3).toList();
+    final statusColor = _status == IngredientStatus.danger
+        ? AppTheme.dangerColor
+        : AppTheme.warningColor;
 
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _status == IngredientStatus.danger
-            ? AppTheme.dangerColor.withOpacity(0.95)
-            : AppTheme.warningColor.withOpacity(0.95),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            _status == IngredientStatus.danger
-                ? 'Harmful Ingredients:'
-                : 'Warnings:',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: AppTheme.bodyFontSize,
-              fontWeight: FontWeight.bold,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.8),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: statusColor.withOpacity(0.5)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _status == IngredientStatus.danger
+                  ? '⚠️ Harmful Ingredients:'
+                  : '⚠️ Warnings:',
+              style: TextStyle(
+                color: statusColor,
+                fontSize: AppTheme.bodyFontSize - 2,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          ...displayIssues.map(
-            (ing) => Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(
-                    ing.status == IngredientStatus.danger
-                        ? Icons.warning_rounded
-                        : Icons.error_outline,
-                    color: Colors.white,
-                    size: 18,
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: displayIssues.map((ing) {
+                final c = ing.status == IngredientStatus.danger
+                    ? AppTheme.dangerColor
+                    : AppTheme.warningColor;
+                return Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: c.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(50),
+                    border: Border.all(color: c.withOpacity(0.5)),
                   ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      ing.ingredientName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: AppTheme.bodyFontSize,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  child: Text(
+                    ing.ingredientName,
+                    style: TextStyle(
+                      color: c,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                ],
+                );
+              }).toList(),
+            ),
+            if (issues.length > 3)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text(
+                  '+ ${issues.length - 3} more issues...',
+                  style: const TextStyle(
+                      color: Colors.white70, fontWeight: FontWeight.w500),
+                ),
               ),
-            ),
-          ),
-          if (issues.length > 3)
-            Text(
-              '+ ${issues.length - 3} more issues...',
-              style: const TextStyle(
-                  color: Colors.white70, fontWeight: FontWeight.w500),
-            ),
-          GestureDetector(
-            onTap: _showResultBottomSheet,
-            child: const Padding(
-              padding: EdgeInsets.only(top: 8),
-              child: Text(
-                'Tap for full details →',
-                style: TextStyle(
-                    color: Colors.white,
+            GestureDetector(
+              onTap: _showResultBottomSheet,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  'View full analysis →',
+                  style: TextStyle(
+                    color: AppTheme.neonMint,
                     fontWeight: FontWeight.bold,
+                    fontSize: 13,
                     decoration: TextDecoration.underline,
-                    decorationColor: Colors.white),
+                    decorationColor: AppTheme.neonMint,
+                  ),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -910,10 +1028,11 @@ class _ScannerScreenState extends State<ScannerScreen> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.72),
-        borderRadius: BorderRadius.circular(8),
+        color: Colors.black.withOpacity(0.65),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.neonMint.withOpacity(0.15)),
       ),
       child: Text(
         message,
@@ -943,4 +1062,79 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     return true;
   }
+}
+
+// ─── Scanner Frame Painter ─────────────────────────────────────────────────────
+
+/// Draws classic 4-corner bracket overlays on the camera viewfinder.
+class _ScannerFramePainter extends CustomPainter {
+  final Color color;
+  const _ScannerFramePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    // Frame dimensions
+    const frameW = 220.0;
+    const frameH = 260.0;
+    const cornerLen = 28.0;
+    const radius = 10.0;
+
+    final left = (size.width - frameW) / 2;
+    final top = (size.height - frameH) / 2;
+    final right = left + frameW;
+    final bottom = top + frameH;
+
+    // ── Top-left corner
+    canvas.drawPath(
+      Path()
+        ..moveTo(left, top + cornerLen)
+        ..lineTo(left, top + radius)
+        ..quadraticBezierTo(left, top, left + radius, top)
+        ..lineTo(left + cornerLen, top),
+      paint,
+    );
+    // ── Top-right corner
+    canvas.drawPath(
+      Path()
+        ..moveTo(right - cornerLen, top)
+        ..lineTo(right - radius, top)
+        ..quadraticBezierTo(right, top, right, top + radius)
+        ..lineTo(right, top + cornerLen),
+      paint,
+    );
+    // ── Bottom-right corner
+    canvas.drawPath(
+      Path()
+        ..moveTo(right, bottom - cornerLen)
+        ..lineTo(right, bottom - radius)
+        ..quadraticBezierTo(right, bottom, right - radius, bottom)
+        ..lineTo(right - cornerLen, bottom),
+      paint,
+    );
+    // ── Bottom-left corner
+    canvas.drawPath(
+      Path()
+        ..moveTo(left + cornerLen, bottom)
+        ..lineTo(left + radius, bottom)
+        ..quadraticBezierTo(left, bottom, left, bottom - radius)
+        ..lineTo(left, bottom - cornerLen),
+      paint,
+    );
+
+    // ── Subtle centre cross-hair dot
+    canvas.drawCircle(
+      Offset(size.width / 2, size.height / 2),
+      3,
+      paint..style = PaintingStyle.fill..color = color.withOpacity(0.6),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ScannerFramePainter old) => old.color != color;
 }
