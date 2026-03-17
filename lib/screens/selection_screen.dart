@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
+import '../main.dart' show selectedConditionsNotifier;
 import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
 import 'main_parent_screen.dart';
@@ -16,23 +17,57 @@ class SelectionScreen extends StatefulWidget {
   State<SelectionScreen> createState() => _SelectionScreenState();
 }
 
+// Emoji + color config for each condition (no business logic changed)
+const List<(HealthCondition, String, Color)> _conditionConfig = [
+  (HealthCondition.diabetes, '🩸', Color(0xFF9C27B0)),
+  (HealthCondition.glutenAllergy, '🌾', Color(0xFFB8860B)),
+  (HealthCondition.nutAllergy, '🥜', Color(0xFF8B4513)),
+  (HealthCondition.hypertension, '❤️', Color(0xFFE53935)),
+  (HealthCondition.lactoseIntolerance, '🥛', Color(0xFF039BE5)),
+  (HealthCondition.vegan, '🥦', Color(0xFF43A047)),
+  (HealthCondition.keto, '🥑', Color(0xFF00897B)),
+  (HealthCondition.lowFodmap, '🫐', Color(0xFF5E35B1)),
+  (HealthCondition.shellfishAllergy, '🦐', Color(0xFFEF6C00)),
+  (HealthCondition.soyAllergy, '🌱', Color(0xFF6D4C41)),
+];
+
 class _SelectionScreenState extends State<SelectionScreen> {
   final PreferencesService _prefs = PreferencesService();
   final Set<HealthCondition> _selectedConditions = {};
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
   bool _loading = false;
 
-  static const List<(HealthCondition, IconData, Color)> _conditionConfig = [
-    (HealthCondition.diabetes, Icons.monitor_heart_outlined, Colors.purple),
-    (HealthCondition.glutenAllergy, Icons.grass, Color(0xFFB8860B)),
-    (HealthCondition.nutAllergy, Icons.restaurant, Color(0xFF8B4513)),
-    (HealthCondition.hypertension, Icons.favorite, Colors.red),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadExistingConditions();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadExistingConditions() async {
+    final conditions = await _prefs.getHealthConditions();
+    if (mounted) {
+      setState(() {
+        _selectedConditions.clear();
+        _selectedConditions.addAll(conditions);
+      });
+    }
+  }
 
   Future<void> _handleGetStarted() async {
     if (_selectedConditions.isEmpty || _loading) return;
     setState(() => _loading = true);
     final ok = await _prefs.saveHealthConditions(_selectedConditions.toList());
     if (ok && mounted) {
+      // Update global notifier so Profile screen reacts instantly
+      selectedConditionsNotifier.value =
+          _selectedConditions.map((c) => c.displayName).toList();
       if (!widget.isUpdateMode) await _prefs.setOnboardingCompleted(true);
       if (widget.isUpdateMode) {
         Navigator.of(context).pop();
@@ -55,26 +90,21 @@ class _SelectionScreenState extends State<SelectionScreen> {
     });
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadExistingConditions();
-  }
-
-  Future<void> _loadExistingConditions() async {
-    final conditions = await _prefs.getHealthConditions();
-    if (mounted) {
-      setState(() {
-        _selectedConditions.clear();
-        _selectedConditions.addAll(conditions);
-      });
-    }
+  List<(HealthCondition, String, Color)> get _filteredConditions {
+    if (_searchQuery.isEmpty) return _conditionConfig;
+    final q = _searchQuery.toLowerCase();
+    return _conditionConfig
+        .where((entry) =>
+            entry.$1.displayName.toLowerCase().contains(q) ||
+            entry.$1.description.toLowerCase().contains(q))
+        .toList();
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppTheme.spaceBlack : AppTheme.icyWhite;
+    final filtered = _filteredConditions;
 
     return Scaffold(
       backgroundColor: bg,
@@ -83,83 +113,189 @@ class _SelectionScreenState extends State<SelectionScreen> {
         centerTitle: true,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 8),
-              Text(
-                'Select Your Conditions',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Choose one or more health conditions to personalize your food scanning experience',
-                style: TextStyle(
-                  fontSize: AppTheme.bodyFontSize - 2,
-                  color: isDark
-                      ? Colors.white.withOpacity(0.55)
-                      : Colors.grey.shade600,
-                ),
-              ),
-              const SizedBox(height: 32),
-              // 2×2 Grid
-              GridView.count(
-                shrinkWrap: true,
-                crossAxisCount: 2,
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: 0.85,
-                physics: const NeverScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Header + Search bar
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (final (condition, icon, color) in _conditionConfig)
-                    _ConditionCard(
-                      condition: condition,
-                      icon: icon,
-                      color: color,
-                      selected: _selectedConditions.contains(condition),
-                      onTap: () => _toggleCondition(condition),
-                      isDark: isDark,
+                  Text(
+                    'Select Your Conditions',
+                    style:
+                        Theme.of(context).textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Choose one or more health conditions to personalize your food scanning experience',
+                    style: TextStyle(
+                      fontSize: AppTheme.bodyFontSize - 2,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.55)
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  // Real-time search bar
+                  TextField(
+                    controller: _searchController,
+                    onChanged: (v) => setState(() => _searchQuery = v.trim()),
+                    style: TextStyle(
+                      fontSize: AppTheme.bodyFontSize - 2,
+                      color: isDark ? Colors.white : AppTheme.navyColor,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: 'Search conditions…',
+                      hintStyle: TextStyle(
+                        color: isDark
+                            ? Colors.white38
+                            : Colors.grey.shade400,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: isDark ? AppTheme.neonMint : AppTheme.navyColor,
+                      ),
+                      suffixIcon: _searchQuery.isNotEmpty
+                          ? IconButton(
+                              icon: Icon(
+                                Icons.close,
+                                color: isDark
+                                    ? Colors.white38
+                                    : Colors.grey.shade500,
+                              ),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchQuery = '');
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: isDark
+                          ? AppTheme.navyCard
+                          : Colors.white,
+                      contentPadding:
+                          const EdgeInsets.symmetric(vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.08)
+                              : Colors.grey.shade200,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: isDark
+                              ? AppTheme.neonMint
+                              : AppTheme.navyColor,
+                          width: 1.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Condition grid — grows/shrinks, no fixed height overflow
+            Expanded(
+              child: filtered.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '🔍',
+                            style: const TextStyle(fontSize: 48),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'No conditions match "$_searchQuery"',
+                            style: TextStyle(
+                              fontSize: AppTheme.bodyFontSize - 2,
+                              color: isDark
+                                  ? Colors.white54
+                                  : Colors.grey.shade500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    )
+                  : GridView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        childAspectRatio: 1.05,
+                      ),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final (condition, emoji, color) = filtered[index];
+                        return _ConditionCard(
+                          condition: condition,
+                          emoji: emoji,
+                          color: color,
+                          selected: _selectedConditions.contains(condition),
+                          onTap: () => _toggleCondition(condition),
+                          isDark: isDark,
+                        );
+                      },
+                    ),
+            ),
+
+            // ── Bottom action area
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed:
+                          _selectedConditions.isNotEmpty && !_loading
+                              ? _handleGetStarted
+                              : null,
+                      child: Text(
+                        _loading ? 'Saving...' : 'Get Started',
+                        style: const TextStyle(
+                          fontSize: AppTheme.bodyFontSize,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (_selectedConditions.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        'Please select at least one condition',
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: isDark
+                                ? Colors.white.withOpacity(0.4)
+                                : Colors.grey.shade500),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                 ],
               ),
-              const SizedBox(height: 28),
-              SizedBox(
-                height: 54,
-                child: ElevatedButton(
-                  onPressed:
-                      _selectedConditions.isNotEmpty && !_loading
-                          ? _handleGetStarted
-                          : null,
-                  child: Text(
-                    _loading ? 'Saving...' : 'Get Started',
-                    style: const TextStyle(
-                      fontSize: AppTheme.bodyFontSize,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              if (_selectedConditions.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: Text(
-                    'Please select at least one condition',
-                    style: TextStyle(
-                        fontSize: 14,
-                        color: isDark
-                            ? Colors.white.withOpacity(0.4)
-                            : Colors.grey.shade500),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              const SizedBox(height: 16),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -168,7 +304,7 @@ class _SelectionScreenState extends State<SelectionScreen> {
 
 class _ConditionCard extends StatelessWidget {
   final HealthCondition condition;
-  final IconData icon;
+  final String emoji;
   final Color color;
   final bool selected;
   final VoidCallback onTap;
@@ -176,7 +312,7 @@ class _ConditionCard extends StatelessWidget {
 
   const _ConditionCard({
     required this.condition,
-    required this.icon,
+    required this.emoji,
     required this.color,
     required this.selected,
     required this.onTap,
@@ -198,7 +334,7 @@ class _ConditionCard extends StatelessWidget {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         decoration: BoxDecoration(
           color: cardBg,
           borderRadius: BorderRadius.circular(18),
@@ -218,31 +354,37 @@ class _ConditionCard extends StatelessWidget {
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
           children: [
+            // Emoji icon in a colored circle
             Container(
-              width: 56,
-              height: 56,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withOpacity(0.13),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 30, color: color),
+              child: Center(
+                child: Text(emoji, style: const TextStyle(fontSize: 26)),
+              ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               condition.displayName,
               style: TextStyle(
-                fontSize: AppTheme.bodyFontSize - 2,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
                 color: isDark ? Colors.white : AppTheme.navyColor,
               ),
               textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(
               condition.description,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: 11,
                 color: isDark
                     ? Colors.white.withOpacity(0.5)
                     : Colors.grey.shade600,
@@ -251,19 +393,19 @@ class _ConditionCard extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
-            if (selected)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: CircleAvatar(
-                  radius: 11,
-                  backgroundColor: isDark ? AppTheme.neonMint : AppTheme.navyColor,
-                  child: Icon(
-                    Icons.check,
-                    color: isDark ? AppTheme.spaceBlack : Colors.white,
-                    size: 14,
-                  ),
+            if (selected) ...[
+              const SizedBox(height: 6),
+              CircleAvatar(
+                radius: 10,
+                backgroundColor:
+                    isDark ? AppTheme.neonMint : AppTheme.navyColor,
+                child: Icon(
+                  Icons.check,
+                  color: isDark ? AppTheme.spaceBlack : Colors.white,
+                  size: 13,
                 ),
               ),
+            ],
           ],
         ),
       ),

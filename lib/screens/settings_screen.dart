@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
-import '../main.dart' show themeModeNotifier;
+import '../main.dart' show themeModeNotifier, selectedConditionsNotifier;
 import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
 import 'selection_screen.dart';
@@ -37,6 +37,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _voiceFeedbackEnabled = voice;
         _loading = false;
       });
+      // Keep global notifier in sync so Profile screen updates instantly
+      selectedConditionsNotifier.value =
+          conditions.map((c) => c.displayName).toList();
     }
   }
 

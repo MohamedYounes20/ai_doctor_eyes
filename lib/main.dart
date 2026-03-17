@@ -13,6 +13,11 @@ import 'services/preferences_service.dart';
 final ValueNotifier<ThemeMode> themeModeNotifier =
     ValueNotifier(ThemeMode.light);
 
+/// Global health-conditions notifier — holds the list of selected condition
+/// display names so any screen can reactively observe changes.
+final ValueNotifier<List<String>> selectedConditionsNotifier =
+    ValueNotifier<List<String>>([]);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");

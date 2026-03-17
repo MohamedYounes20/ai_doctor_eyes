@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
+import '../main.dart' show selectedConditionsNotifier;
 import '../models/health_condition.dart';
 import '../models/scan_history_item.dart';
 import '../services/database_helper.dart';
 import '../services/preferences_service.dart';
 import 'selection_screen.dart';
+import 'welcome_screen.dart';
 
 /// Profile tab: User name, Active condition, Scan history list.
 class ProfileScreen extends StatefulWidget {
@@ -149,7 +151,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               IconButton(
                                 icon: const Icon(Icons.edit,
                                     color: Colors.white70, size: 18),
-                                onPressed: () {},
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const WelcomeScreen(),
+                                    ),
+                                  );
+                                },
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(),
                               ),
@@ -174,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // ── Active conditions
+                          // ── Active conditions — reactive via global notifier
                           Text(
                             'Active Health Conditions',
                             style:
@@ -183,68 +192,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                           ),
                           const SizedBox(height: 12),
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? AppTheme.navyCard
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: isDark
-                                    ? AppTheme.neonMint.withOpacity(0.25)
-                                    : AppTheme.navyColor.withOpacity(0.15),
-                              ),
-                              boxShadow: [
-                                BoxShadow(
+                          ValueListenableBuilder<List<String>>(
+                            valueListenable: selectedConditionsNotifier,
+                            builder: (context, conditionNames, _) {
+                              // Also sync local _conditions list for the button label
+                              return Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
                                   color: isDark
-                                      ? Colors.black.withOpacity(0.2)
-                                      : AppTheme.navyColor.withOpacity(0.05),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (_conditions.isEmpty)
-                                  Text(
-                                    'No conditions selected',
-                                    style: TextStyle(
-                                      fontSize: AppTheme.bodyFontSize,
+                                      ? AppTheme.navyCard
+                                      : Colors.white,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: isDark
+                                        ? AppTheme.neonMint.withOpacity(0.25)
+                                        : AppTheme.navyColor.withOpacity(0.15),
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
                                       color: isDark
-                                          ? Colors.white54
-                                          : Colors.grey,
+                                          ? Colors.black.withOpacity(0.2)
+                                          : AppTheme.navyColor.withOpacity(0.05),
+                                      blurRadius: 12,
+                                      offset: const Offset(0, 4),
                                     ),
-                                  )
-                                else
-                                  ..._conditions.map(
-                                    (c) =>
-                                        _buildConditionRow(c.displayName, isDark),
-                                  ),
-                                const SizedBox(height: 8),
-                                OutlinedButton.icon(
-                                  onPressed: () async {
-                                    await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => const SelectionScreen(
-                                            isUpdateMode: true),
-                                      ),
-                                    );
-                                    _refresh();
-                                    widget.onUpdateConditions?.call();
-                                  },
-                                  icon: const Icon(Icons.edit, size: 18),
-                                  label: Text(
-                                    _conditions.isEmpty
-                                        ? 'Select Conditions'
-                                        : 'Update My Conditions',
-                                  ),
+                                  ],
                                 ),
-                              ],
-                            ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (conditionNames.isEmpty)
+                                      Text(
+                                        'No conditions selected',
+                                        style: TextStyle(
+                                          fontSize: AppTheme.bodyFontSize,
+                                          color: isDark
+                                              ? Colors.white54
+                                              : Colors.grey,
+                                        ),
+                                      )
+                                    else
+                                      ...conditionNames.map(
+                                        (name) => _buildConditionRow(
+                                            name, isDark),
+                                      ),
+                                    const SizedBox(height: 8),
+                                    OutlinedButton.icon(
+                                      onPressed: () async {
+                                        await Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const SelectionScreen(
+                                                    isUpdateMode: true),
+                                          ),
+                                        );
+                                        _refresh();
+                                        widget.onUpdateConditions?.call();
+                                      },
+                                      icon: const Icon(Icons.edit, size: 18),
+                                      label: Text(
+                                        conditionNames.isEmpty
+                                            ? 'Select Conditions'
+                                            : 'Update My Conditions',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(height: 24),
                         ],
@@ -257,25 +273,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// Maps condition display name to a vibrant emoji for visual richness.
+  String _emojiForCondition(String name) {
+    const map = {
+      'Diabetes': '🩸',
+      'Gluten Allergy': '🌾',
+      'Nut Allergy': '🥜',
+      'Hypertension': '❤️',
+      'Lactose Intolerance': '🥛',
+      'Vegan': '🥦',
+      'Keto Diet': '🥑',
+      'Low FODMAP': '🫐',
+      'Shellfish Allergy': '🦐',
+      'Soy Allergy': '🌱',
+    };
+    return map[name] ?? '💊';
+  }
+
   Widget _buildConditionRow(String text, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: isDark ? AppTheme.neonMint : AppTheme.mintColor,
-              shape: BoxShape.circle,
-            ),
+          Text(
+            _emojiForCondition(text),
+            style: const TextStyle(fontSize: 18),
           ),
           const SizedBox(width: 10),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: AppTheme.bodyFontSize,
-              color: isDark ? Colors.white : AppTheme.navyColor,
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: AppTheme.bodyFontSize,
+                color: isDark ? Colors.white : AppTheme.navyColor,
+              ),
             ),
           ),
         ],
