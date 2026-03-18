@@ -341,60 +341,67 @@ class _ConditionCard extends StatelessWidget {
             ),
           ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
+        child: Stack(
+          alignment: Alignment.center,
           children: [
-            // Emoji icon in a colored circle
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.13),
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Text(emoji, style: const TextStyle(fontSize: 26)),
-              ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Emoji icon in a colored circle
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(0.13),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(emoji, style: const TextStyle(fontSize: 26)),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  condition.displayName,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : AppTheme.navyColor,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  condition.description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isDark
+                        ? Colors.white.withOpacity(0.5)
+                        : Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              condition.displayName,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: isDark ? Colors.white : AppTheme.navyColor,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 3),
-            Text(
-              condition.description,
-              style: TextStyle(
-                fontSize: 11,
-                color: isDark
-                    ? Colors.white.withOpacity(0.5)
-                    : Colors.grey.shade600,
-              ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (selected) ...[
-              const SizedBox(height: 6),
-              CircleAvatar(
-                radius: 10,
-                backgroundColor:
-                    isDark ? AppTheme.neonMint : AppTheme.navyColor,
-                child: Icon(
-                  Icons.check,
-                  color: isDark ? AppTheme.spaceBlack : Colors.white,
-                  size: 13,
+            if (selected)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: CircleAvatar(
+                  radius: 10,
+                  backgroundColor:
+                      isDark ? AppTheme.neonMint : AppTheme.navyColor,
+                  child: Icon(
+                    Icons.check,
+                    color: isDark ? AppTheme.spaceBlack : Colors.white,
+                    size: 13,
+                  ),
                 ),
               ),
-            ],
           ],
         ),
       ),
