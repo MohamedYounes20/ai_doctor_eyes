@@ -3,8 +3,6 @@ import '../app_theme.dart';
 import '../core/constants/condition_config.dart';
 import '../main.dart' show selectedConditionsNotifier;
 import '../models/health_condition.dart';
-import '../models/scan_history_item.dart';
-import '../services/database_helper.dart';
 import '../services/preferences_service.dart';
 import 'selection_screen.dart';
 import 'welcome_screen.dart';
@@ -22,12 +20,10 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   final PreferencesService _prefs = PreferencesService();
-  final DatabaseHelper _db = DatabaseHelper.instance;
 
   String? _fullName;
   int? _yearOfBirth;
   List<HealthCondition> _conditions = [];
-  List<ScanHistoryItem> _scanHistory = [];
   bool _loading = true;
 
   @override
@@ -47,13 +43,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final name = await _prefs.getFullName();
     final year = await _prefs.getYearOfBirth();
     final conditions = await _prefs.getHealthConditions();
-    final history = await _db.getAllScanHistory();
     if (mounted) {
       setState(() {
         _fullName = name ?? 'User';
         _yearOfBirth = year;
         _conditions = conditions;
-        _scanHistory = history;
         _loading = false;
       });
     }
@@ -298,102 +292,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
     );
-  }
-}
-
-class _ScanHistoryCard extends StatelessWidget {
-  final ScanHistoryItem item;
-
-  const _ScanHistoryCard({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isSafe = item.isSafe;
-    final color = isSafe ? AppTheme.safeColor : AppTheme.dangerColor;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-      decoration: BoxDecoration(
-        color: isDark ? AppTheme.navyCard : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: isDark
-                ? Colors.black.withOpacity(0.2)
-                : AppTheme.navyColor.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundColor: color.withOpacity(0.15),
-              child: Icon(
-                isSafe ? Icons.check : Icons.close,
-                color: color,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.productName,
-                    style: TextStyle(
-                      fontSize: AppTheme.bodyFontSize,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white : AppTheme.navyColor,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    _formatDate(item.timestamp),
-                    style: TextStyle(
-                        fontSize: 14,
-                        color: isDark
-                            ? Colors.white.withOpacity(0.5)
-                            : Colors.grey.shade600),
-                  ),
-                ],
-              ),
-            ),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withOpacity(0.4)),
-              ),
-              child: Text(
-                item.status,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime dt) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
   }
 }

@@ -1,11 +1,9 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
-import '../models/scan_history_item.dart';
 
 /// Offline database helper using sqflite.
 ///
 /// Tables:
-///   scan_history            – history of every scan (name, status, timestamp)
 ///   cached_ingredients      – legacy per-ingredient AI cache
 ///   product_analysis_cache  – NEW: per-product AI result keyed by sha256 hash
 class DatabaseHelper {
@@ -14,7 +12,6 @@ class DatabaseHelper {
 
   static Database? _database;
 
-  static const String _tableScanHistory = 'scan_history';
   static const String _tableCachedIngredients = 'cached_ingredients';
   static const String _tableProductCache = 'product_analysis_cache';
   static const int _version = 4;
@@ -38,16 +35,6 @@ class DatabaseHelper {
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    await db.execute('''
-      CREATE TABLE $_tableScanHistory (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        productName TEXT NOT NULL,
-        status TEXT NOT NULL,
-        harmfulIngredients TEXT,
-        timestamp INTEGER NOT NULL
-      )
-    ''');
-
     await db.execute('''
       CREATE TABLE $_tableCachedIngredients (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,35 +95,6 @@ class DatabaseHelper {
         )
       ''');
     }
-  }
-
-  // ── Scan History ────────────────────────────────────────────────────────────
-
-  Future<int> insertScanHistory(ScanHistoryItem item) async {
-    final db = await database;
-    return db.insert(
-      _tableScanHistory,
-      item.toMap(),
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
-  }
-
-  Future<List<ScanHistoryItem>> getAllScanHistory() async {
-    final db = await database;
-    final maps = await db.query(
-      _tableScanHistory,
-      orderBy: 'timestamp DESC',
-    );
-    return maps.map((m) => ScanHistoryItem.fromMap(m)).toList();
-  }
-
-  Future<int> deleteScanHistory(int id) async {
-    final db = await database;
-    return db.delete(
-      _tableScanHistory,
-      where: 'id = ?',
-      whereArgs: [id],
-    );
   }
 
   // ── Legacy Per-Ingredient Cache ─────────────────────────────────────────────
