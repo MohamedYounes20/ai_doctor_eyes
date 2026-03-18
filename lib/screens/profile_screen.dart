@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
+import '../core/constants/condition_config.dart';
 import '../main.dart' show selectedConditionsNotifier;
 import '../models/health_condition.dart';
 import '../models/scan_history_item.dart';
@@ -273,22 +274,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  /// Maps condition display name to a vibrant emoji for visual richness.
-  String _emojiForCondition(String name) {
-    const map = {
-      'Diabetes': '🩸',
-      'Gluten Allergy': '🌾',
-      'Nut Allergy': '🥜',
-      'Hypertension': '❤️',
-      'Lactose Intolerance': '🥛',
-      'Vegan': '🥦',
-      'Keto Diet': '🥑',
-      'Low FODMAP': '🫐',
-      'Shellfish Allergy': '🦐',
-      'Soy Allergy': '🌱',
-    };
-    return map[name] ?? '💊';
-  }
+  // Emoji lookup delegated to shared condition_config.dart
 
   Widget _buildConditionRow(String text, bool isDark) {
     return Padding(
@@ -296,7 +282,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Row(
         children: [
           Text(
-            _emojiForCondition(text),
+            emojiForCondition(text),
             style: const TextStyle(fontSize: 18),
           ),
           const SizedBox(width: 10),

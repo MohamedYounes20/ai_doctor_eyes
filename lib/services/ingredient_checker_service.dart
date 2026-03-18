@@ -5,67 +5,12 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/health_condition.dart';
+import '../models/analysis_models.dart';
 import '../logic/extractor/ocr_cleaner.dart';
 import '../logic/transformer/ingredient_transformer.dart';
 import '../logic/analyzer/health_analyzer.dart';
 import 'database_helper.dart';
 import 'preferences_service.dart';
-
-// ─── Enums ────────────────────────────────────────────────────────────────────
-
-enum IngredientStatus { safe, warning, danger }
-
-/// Indicates how the final result was produced.
-enum AnalysisSource {
-  localScan,   // Offline keyword matching only
-  aiAnalysis,  // Fresh gemini API call
-  aiCached,    // Retrieved from local DB cache
-  fallback,    // gemini timed-out/failed → fell back to local scan
-}
-
-// ─── Models ───────────────────────────────────────────────────────────────────
-
-class IngredientAnalysis {
-  final String ingredientName;
-  final IngredientStatus status;
-  final String reason;
-  final String? severity; // Low | Medium | High
-
-  const IngredientAnalysis({
-    required this.ingredientName,
-    required this.status,
-    required this.reason,
-    this.severity,
-  });
-}
-
-class ProductAnalysisResult {
-  final IngredientStatus overallStatus;
-  final List<IngredientAnalysis> details;
-  final AnalysisSource source;
-
-  /// Bilingual summary fields (populated by gemini; empty for local-only scans)
-  final List<String> foundHarmful;
-  final String reasonAr;
-  final String analysisEn;
-
-  /// True when garbled Arabic was guessed – UI should show a warning note.
-  final bool partialArabicWarning;
-
-  /// True if the local scan found harmful ingredients before AI was called/failed
-  final bool localFoundHarmful;
-
-  const ProductAnalysisResult({
-    required this.overallStatus,
-    required this.details,
-    required this.source,
-    this.foundHarmful = const [],
-    this.reasonAr = '',
-    this.analysisEn = '',
-    this.partialArabicWarning = false,
-    this.localFoundHarmful = false,
-  });
-}
 
 // ─── Service Orchestrator ───────────────────────────────────────────────────
 

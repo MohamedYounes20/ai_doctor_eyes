@@ -1,6 +1,6 @@
 import '../../models/health_condition.dart';
+import '../../models/analysis_models.dart';
 import '../../core/constants/ingredient_constants.dart';
-import '../../services/ingredient_checker_service.dart';
 import '../transformer/ingredient_transformer.dart';
 
 class LocalAnalysisResult {

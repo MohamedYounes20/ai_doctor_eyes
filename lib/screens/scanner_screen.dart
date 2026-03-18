@@ -8,10 +8,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:vibration/vibration.dart';
 import '../app_theme.dart';
 import '../models/health_condition.dart';
-
+import '../models/analysis_models.dart';
 
 import '../services/ingredient_checker_service.dart';
 import '../services/preferences_service.dart';
+import 'widgets/scanner_frame_painter.dart';
+import 'widgets/scanner_result_sheet.dart';
 
 /// Scanner Screen: Camera + ML Kit (Latin + Arabic), Hybrid Offline-Online Analysis.
 class ScannerScreen extends StatefulWidget {
@@ -331,396 +333,38 @@ class _ScannerScreenState extends State<ScannerScreen> {
     await _tts!.speak(verb);
   }
 
-  // ── Bottom Sheet ──────────────────────────────────────────────────────────
+  // ── Bottom Sheet (delegated to extracted widget) ──────────────────────────
 
   void _showResultBottomSheet() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: isDark ? AppTheme.navyCard : Colors.white,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.55,
-        maxChildSize: 0.92,
-        minChildSize: 0.35,
-        builder: (context, scrollController) =>
-            _buildBottomSheetContent(scrollController),
-      ),
-    );
-  }
-
-  Widget _buildBottomSheetContent(ScrollController scrollController) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    Color color = AppTheme.safeColor;
-    IconData icon = Icons.check_circle;
-    String statusText = 'SAFE';
-
-    if (_status == IngredientStatus.danger) {
-      color = AppTheme.dangerColor;
-      icon = Icons.warning_rounded;
-      statusText = 'DANGER';
-    } else if (_status == IngredientStatus.warning) {
-      color = AppTheme.warningColor;
-      icon = Icons.error_outline;
-      statusText = 'WARNING';
-    }
-
-    final issues = _ingredientDetails
-        .where((d) => d.status != IngredientStatus.safe)
-        .where((d) => _isValidIngredientName(d.ingredientName))
-        .toList();
-
-    final sheetBg = isDark ? AppTheme.navyCard : Colors.white;
-    final textColor = isDark ? Colors.white : AppTheme.navyColor;
-    final subColor = isDark ? Colors.white.withOpacity(0.6) : Colors.grey.shade600;
-
-    return Container(
-      color: sheetBg,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
-        child: ListView(
-          controller: scrollController,
-          children: [
-            // Handle bar
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: isDark ? Colors.white.withOpacity(0.2) : Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Title
-            Text(
-              'Analysis Result',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 4),
-
-            // Source badge
-            Center(child: _buildSourceBadge()),
-            const SizedBox(height: 16),
-
-            // Status banner
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [color, color.withOpacity(0.75)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: color.withOpacity(0.35),
-                    blurRadius: 12,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: Colors.white, size: 26),
-                  const SizedBox(width: 10),
-                  Text(
-                    statusText,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: AppTheme.titleFontSize,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Partial Arabic warning
-            if (_partialArabicWarning) ...[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: AppTheme.warningColor.withOpacity(isDark ? 0.12 : 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.warningColor.withOpacity(0.4)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.translate, color: AppTheme.warningColor, size: 20),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Analysis based on partial Arabic text. '
-                        'Scan English ingredients if available for 100% accuracy.',
-                        style: TextStyle(fontSize: 13, color: subColor),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Bilingual AI summary (only when available)
-            if (_analysisEn.isNotEmpty || _reasonAr.isNotEmpty) ...[
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppTheme.neonMint.withOpacity(0.08)
-                      : AppTheme.mintColor.withOpacity(0.07),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                      color: isDark
-                          ? AppTheme.neonMint.withOpacity(0.25)
-                          : AppTheme.mintColor.withOpacity(0.3)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.psychology,
-                            color: isDark ? AppTheme.neonMint : AppTheme.mintColor,
-                            size: 18),
-                        const SizedBox(width: 6),
-                        Text(
-                          'AI Analysis',
-                          style: TextStyle(
-                            color: isDark ? AppTheme.neonMint : AppTheme.mintColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_analysisEn.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _analysisEn,
-                        style: TextStyle(fontSize: 13, color: subColor),
-                      ),
-                    ],
-                    if (_reasonAr.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _reasonAr,
-                        textDirection: TextDirection.rtl,
-                        style: TextStyle(fontSize: 13, color: subColor),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-
-            // Ingredient issues
-            Text(
-              'Ingredient Issues',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: textColor,
-                  ),
-            ),
-            const SizedBox(height: 10),
-
-            if (issues.isEmpty)
-              Text(
-                'No harmful ingredients found.',
-                style: TextStyle(
-                    fontSize: AppTheme.bodyFontSize, color: subColor),
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: issues.map((ing) => _buildIngredientPill(ing)).toList(),
-              ),
-
-            const SizedBox(height: 16),
-
-            // Detailed list below pills
-            if (issues.isNotEmpty)
-              ...issues.map((ing) => _buildIssueRow(ing)),
-
-            const SizedBox(height: 24),
-
-            SizedBox(
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isDark ? AppTheme.neonMint : AppTheme.navyColor,
-                  foregroundColor: isDark ? AppTheme.spaceBlack : Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text(
-                  'Close',
-                  style: TextStyle(
-                    fontSize: AppTheme.bodyFontSize,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Color-coded pill chip for a single ingredient issue.
-  Widget _buildIngredientPill(IngredientAnalysis ing) {
-    final isDanger = ing.status == IngredientStatus.danger;
-    final bg = isDanger
-        ? AppTheme.dangerColor.withOpacity(0.12)
-        : AppTheme.warningColor.withOpacity(0.12);
-    final border = isDanger
-        ? AppTheme.dangerColor.withOpacity(0.4)
-        : AppTheme.warningColor.withOpacity(0.4);
-    final textColor = isDanger ? AppTheme.dangerColor : AppTheme.warningColor;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(50),
-        border: Border.all(color: border),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isDanger ? Icons.warning_rounded : Icons.info_outline,
-            color: textColor,
-            size: 14,
-          ),
-          const SizedBox(width: 5),
-          Text(
-            ing.ingredientName,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildIssueRow(IngredientAnalysis ing) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isDanger = ing.status == IngredientStatus.danger;
-    final iconColor = isDanger ? AppTheme.dangerColor : AppTheme.warningColor;
-    final textColor = isDark ? Colors.white : AppTheme.navyColor;
-    final subColor = isDark ? Colors.white.withOpacity(0.6) : Colors.grey.shade700;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            isDanger ? Icons.warning_rounded : Icons.error_outline,
-            color: iconColor,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        ing.ingredientName,
-                        style: TextStyle(
-                          fontSize: AppTheme.bodyFontSize,
-                          fontWeight: FontWeight.bold,
-                          color: textColor,
-                        ),
-                      ),
-                    ),
-                    if (ing.severity != null)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: iconColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: iconColor.withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          ing.severity!,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: iconColor,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                Text(
-                  ing.reason,
-                  style: TextStyle(fontSize: 13, color: subColor),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+    ScannerResultSheet.show(
+      context,
+      status: _status,
+      analysisSource: _analysisSource,
+      ingredientDetails: _ingredientDetails,
+      reasonAr: _reasonAr,
+      analysisEn: _analysisEn,
+      partialArabicWarning: _partialArabicWarning,
     );
   }
 
   // ── Status badge helpers ──────────────────────────────────────────────────
 
-  Widget _buildSourceBadge() {
+  Widget _buildSourceBadgeCompact() {
     switch (_analysisSource) {
       case AnalysisSource.aiAnalysis:
-        return _badge('🤖 Deep AI Analysis', Colors.indigo);
+        return const Text('🤖 Deep AI Analysis',
+            style: TextStyle(color: Colors.white70, fontSize: 11));
       case AnalysisSource.aiCached:
-        return _badge('🤖 AI (Cached)', Colors.teal);
+        return const Text('🤖 AI (Cached)',
+            style: TextStyle(color: Colors.white70, fontSize: 11));
       case AnalysisSource.fallback:
-        return _badge('⚡ Local Scan (AI failed)', Colors.deepOrange);
+        return const Text('⚡ Local Scan (AI unavailable)',
+            style: TextStyle(color: Colors.white70, fontSize: 11));
       case AnalysisSource.localScan:
-        return _badge('⚡ Local Fast Scan', Colors.blueGrey);
+        return const Text('⚡ Local Fast Scan',
+            style: TextStyle(color: Colors.white70, fontSize: 11));
     }
   }
-
-  Widget _badge(String label, Color color) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
-          border: Border.all(color: color.withOpacity(0.5)),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: color,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      );
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
@@ -766,7 +410,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
           if (_isInitialized)
             Positioned.fill(
               child: CustomPaint(
-                painter: _ScannerFramePainter(
+                painter: ScannerFramePainter(
                   color: _hasScanned
                       ? (_status == IngredientStatus.safe
                           ? AppTheme.safeColor
@@ -897,23 +541,6 @@ class _ScannerScreenState extends State<ScannerScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildSourceBadgeCompact() {
-    switch (_analysisSource) {
-      case AnalysisSource.aiAnalysis:
-        return const Text('🤖 Deep AI Analysis',
-            style: TextStyle(color: Colors.white70, fontSize: 11));
-      case AnalysisSource.aiCached:
-        return const Text('🤖 AI (Cached)',
-            style: TextStyle(color: Colors.white70, fontSize: 11));
-      case AnalysisSource.fallback:
-        return const Text('⚡ Local Scan (AI unavailable)',
-            style: TextStyle(color: Colors.white70, fontSize: 11));
-      case AnalysisSource.localScan:
-        return const Text('⚡ Local Fast Scan',
-            style: TextStyle(color: Colors.white70, fontSize: 11));
-    }
   }
 
   Widget _buildIngredientDetailsList() {
@@ -1062,79 +689,4 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
     return true;
   }
-}
-
-// ─── Scanner Frame Painter ─────────────────────────────────────────────────────
-
-/// Draws classic 4-corner bracket overlays on the camera viewfinder.
-class _ScannerFramePainter extends CustomPainter {
-  final Color color;
-  const _ScannerFramePainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 3.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    // Frame dimensions
-    const frameW = 220.0;
-    const frameH = 260.0;
-    const cornerLen = 28.0;
-    const radius = 10.0;
-
-    final left = (size.width - frameW) / 2;
-    final top = (size.height - frameH) / 2;
-    final right = left + frameW;
-    final bottom = top + frameH;
-
-    // ── Top-left corner
-    canvas.drawPath(
-      Path()
-        ..moveTo(left, top + cornerLen)
-        ..lineTo(left, top + radius)
-        ..quadraticBezierTo(left, top, left + radius, top)
-        ..lineTo(left + cornerLen, top),
-      paint,
-    );
-    // ── Top-right corner
-    canvas.drawPath(
-      Path()
-        ..moveTo(right - cornerLen, top)
-        ..lineTo(right - radius, top)
-        ..quadraticBezierTo(right, top, right, top + radius)
-        ..lineTo(right, top + cornerLen),
-      paint,
-    );
-    // ── Bottom-right corner
-    canvas.drawPath(
-      Path()
-        ..moveTo(right, bottom - cornerLen)
-        ..lineTo(right, bottom - radius)
-        ..quadraticBezierTo(right, bottom, right - radius, bottom)
-        ..lineTo(right - cornerLen, bottom),
-      paint,
-    );
-    // ── Bottom-left corner
-    canvas.drawPath(
-      Path()
-        ..moveTo(left + cornerLen, bottom)
-        ..lineTo(left + radius, bottom)
-        ..quadraticBezierTo(left, bottom, left, bottom - radius)
-        ..lineTo(left, bottom - cornerLen),
-      paint,
-    );
-
-    // ── Subtle centre cross-hair dot
-    canvas.drawCircle(
-      Offset(size.width / 2, size.height / 2),
-      3,
-      paint..style = PaintingStyle.fill..color = color.withOpacity(0.6),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_ScannerFramePainter old) => old.color != color;
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_theme.dart';
+import '../core/constants/condition_config.dart';
 import '../main.dart' show selectedConditionsNotifier;
 import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
@@ -17,19 +18,7 @@ class SelectionScreen extends StatefulWidget {
   State<SelectionScreen> createState() => _SelectionScreenState();
 }
 
-// Emoji + color config for each condition (no business logic changed)
-const List<(HealthCondition, String, Color)> _conditionConfig = [
-  (HealthCondition.diabetes, '🩸', Color(0xFF9C27B0)),
-  (HealthCondition.glutenAllergy, '🌾', Color(0xFFB8860B)),
-  (HealthCondition.nutAllergy, '🥜', Color(0xFF8B4513)),
-  (HealthCondition.hypertension, '❤️', Color(0xFFE53935)),
-  (HealthCondition.lactoseIntolerance, '🥛', Color(0xFF039BE5)),
-  (HealthCondition.vegan, '🥦', Color(0xFF43A047)),
-  (HealthCondition.keto, '🥑', Color(0xFF00897B)),
-  (HealthCondition.lowFodmap, '🫐', Color(0xFF5E35B1)),
-  (HealthCondition.shellfishAllergy, '🦐', Color(0xFFEF6C00)),
-  (HealthCondition.soyAllergy, '🌱', Color(0xFF6D4C41)),
-];
+// Emoji + color config sourced from shared condition_config.dart
 
 class _SelectionScreenState extends State<SelectionScreen> {
   final PreferencesService _prefs = PreferencesService();
@@ -90,13 +79,13 @@ class _SelectionScreenState extends State<SelectionScreen> {
     });
   }
 
-  List<(HealthCondition, String, Color)> get _filteredConditions {
-    if (_searchQuery.isEmpty) return _conditionConfig;
+  List<ConditionVisual> get _filteredConditions {
+    if (_searchQuery.isEmpty) return conditionVisuals;
     final q = _searchQuery.toLowerCase();
-    return _conditionConfig
+    return conditionVisuals
         .where((entry) =>
-            entry.$1.displayName.toLowerCase().contains(q) ||
-            entry.$1.description.toLowerCase().contains(q))
+            entry.condition.displayName.toLowerCase().contains(q) ||
+            entry.condition.description.toLowerCase().contains(q))
         .toList();
   }
 
@@ -244,13 +233,13 @@ class _SelectionScreenState extends State<SelectionScreen> {
                       ),
                       itemCount: filtered.length,
                       itemBuilder: (context, index) {
-                        final (condition, emoji, color) = filtered[index];
+                        final cv = filtered[index];
                         return _ConditionCard(
-                          condition: condition,
-                          emoji: emoji,
-                          color: color,
-                          selected: _selectedConditions.contains(condition),
-                          onTap: () => _toggleCondition(condition),
+                          condition: cv.condition,
+                          emoji: cv.emoji,
+                          color: cv.color,
+                          selected: _selectedConditions.contains(cv.condition),
+                          onTap: () => _toggleCondition(cv.condition),
                           isDark: isDark,
                         );
                       },

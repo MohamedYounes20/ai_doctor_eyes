@@ -1,10 +1,15 @@
-import '../../../models/health_condition.dart';
+import '../../models/health_condition.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Ingredient Constants
 //
 // All static maps and lists used by IngredientCheckerService, extracted here
 // for clean architecture and reusability.
+//
+// ARCHITECTURE: Shared categories prevent duplicate-key errors when multiple
+// conditions reference the same ingredient. Each ingredient key appears in
+// exactly ONE shared or condition-specific map, then all are composed via
+// spread (...) into the global `canonicalDisplayName` map.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Bilingual harmful-ingredient keyword lists, grouped by health condition.
@@ -109,10 +114,16 @@ const Map<HealthCondition, List<String>> harmfulKeywords = {
   ],
 };
 
-/// Canonical Display Name Map.
-/// Every harmful keyword → its clean, official UI display name.
-const Map<String, String> canonicalDisplayName = {
-  // ── Diabetes – English ───────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+// Shared Display Name Categories
+//
+// Ingredients that appear in multiple conditions are grouped here ONCE.
+// The global `canonicalDisplayName` map is composed by spreading these.
+// This eliminates duplicate-key compile errors permanently.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Sugars & sweeteners — shared across Diabetes, Keto, Low FODMAP
+const Map<String, String> _sharedSugarsEnglish = {
   'sugar': 'Sugar', 'sucrose': 'Sucrose', 'glucose': 'Glucose',
   'corn syrup': 'Corn Syrup', 'dextrose': 'Dextrose',
   'maltodextrin': 'Maltodextrin', 'fructose': 'Fructose',
@@ -122,14 +133,61 @@ const Map<String, String> canonicalDisplayName = {
   'maltose': 'Maltose', 'invert sugar': 'Invert Sugar',
   'cane sugar': 'Cane Sugar', 'brown sugar': 'Brown Sugar',
   'raw sugar': 'Raw Sugar', 'beet sugar': 'Beet Sugar',
-  // Diabetes – Arabic
+};
+
+const Map<String, String> _sharedSugarsArabic = {
   'سكر': 'سكر', 'جلوكوز': 'جلوكوز', 'فركتوز': 'فركتوز',
   'شراب': 'شراب', 'مالتوديكسترين': 'مالتوديكسترين',
   'سكروز': 'سكروز', 'ديكستروز': 'ديكستروز',
   'شراب ذرة': 'شراب ذرة', 'عسل': 'عسل', 'دبس': 'دبس',
   'اجاف': 'أجاف', 'لاكتوز': 'لاكتوز', 'مالتوز': 'مالتوز',
   'سكر قصب': 'سكر قصب', 'سكر بني': 'سكر بني',
-  // ── Hypertension – English ───────────────────────────────────────────────
+};
+
+/// Dairy — shared across Lactose Intolerance, Vegan, Low FODMAP
+const Map<String, String> _sharedDairyEnglish = {
+  'milk': 'Milk', 'cream': 'Cream', 'cheese': 'Cheese',
+  'whey': 'Whey', 'casein': 'Casein', 'butter': 'Butter',
+  'yogurt': 'Yogurt',
+};
+
+const Map<String, String> _sharedDairyArabic = {
+  'حليب': 'حليب', 'قشطة': 'قشطة', 'جبن': 'جبن',
+  'مصل اللبن': 'مصل اللبن', 'كازين': 'كازين', 'زبدة': 'زبدة',
+  'زبادي': 'زبادي',
+};
+
+/// Grains — shared across Gluten Allergy, Keto, Low FODMAP
+const Map<String, String> _sharedGrainsEnglish = {
+  'wheat': 'Wheat', 'wheat flour': 'Wheat Flour', 'rye': 'Rye',
+};
+
+const Map<String, String> _sharedGrainsArabic = {
+  'قمح': 'قمح', 'دقيق القمح': 'دقيق القمح', 'جاودار': 'جاودار',
+};
+
+/// Seafood — shared across Vegan, Shellfish Allergy
+const Map<String, String> _sharedSeafoodEnglish = {
+  'shrimp': 'Shrimp', 'squid': 'Squid',
+};
+
+/// Canonical Display Name Map.
+/// Every harmful keyword → its clean, official UI display name.
+///
+/// Composed by spreading shared categories first, then condition-specific
+/// entries. This guarantees every key appears exactly once — adding a new
+/// condition only requires adding its *unique* entries.
+const Map<String, String> canonicalDisplayName = {
+  // ── Shared categories (ingredients appearing in 2+ conditions) ────────────
+  ..._sharedSugarsEnglish,
+  ..._sharedSugarsArabic,
+  ..._sharedDairyEnglish,
+  ..._sharedDairyArabic,
+  ..._sharedGrainsEnglish,
+  ..._sharedGrainsArabic,
+  ..._sharedSeafoodEnglish,
+
+  // ── Hypertension – English (all unique to this condition) ─────────────────
   'salt': 'Salt', 'sodium': 'Sodium', 'nacl': 'Sodium Chloride',
   'msg': 'MSG', 'monosodium glutamate': 'Monosodium Glutamate',
   'sodium chloride': 'Sodium Chloride', 'sea salt': 'Sea Salt',
@@ -147,19 +205,21 @@ const Map<String, String> canonicalDisplayName = {
   'بيكربونات الصوديوم': 'بيكربونات الصوديوم',
   'نترات الصوديوم': 'نترات الصوديوم',
   'بنزوات الصوديوم': 'بنزوات الصوديوم',
-  // ── Gluten – English ─────────────────────────────────────────────────────
-  'wheat': 'Wheat', 'barley': 'Barley', 'rye': 'Rye',
+
+  // ── Gluten – English (unique entries only, shared grains already spread) ──
+  'barley': 'Barley',
   'gluten': 'Gluten', 'malt': 'Malt', 'triticale': 'Triticale',
   'semolina': 'Semolina', 'durum': 'Durum', 'spelt': 'Spelt',
   'kamut': 'Kamut', 'einkorn': 'Einkorn', 'emmer': 'Emmer',
   'farro': 'Farro', 'bulgur': 'Bulgur', 'couscous': 'Couscous',
-  'wheat starch': 'Wheat Starch', 'wheat flour': 'Wheat Flour',
+  'wheat starch': 'Wheat Starch',
   'wholemeal': 'Wholemeal', 'breadcrumbs': 'Breadcrumbs',
-  // Gluten – Arabic
-  'قمح': 'قمح', 'شعير': 'شعير', 'جاودار': 'جاودار',
+  // Gluten – Arabic (unique only)
+  'شعير': 'شعير',
   'جلوتين': 'جلوتين', 'مالت': 'مالت', 'سميد': 'سميد',
-  'دقيق القمح': 'دقيق القمح', 'نخالة القمح': 'نخالة القمح',
+  'نخالة القمح': 'نخالة القمح',
   'كسكس': 'كسكس', 'برغل': 'برغل',
+
   // ── Nut – English ────────────────────────────────────────────────────────
   'peanut': 'Peanut', 'almond': 'Almond', 'cashew': 'Cashew',
   'walnut': 'Walnut', 'hazelnut': 'Hazelnut', 'pecan': 'Pecan',
@@ -173,26 +233,22 @@ const Map<String, String> canonicalDisplayName = {
   'فستق': 'فستق', 'ماكاديميا': 'ماكاديميا',
   'مكسرات': 'مكسرات', 'صنوبر': 'صنوبر', 'كستناء': 'كستناء',
 
-  // ── Lactose Intolerance – English ────────────────────────────────────────
-  'milk': 'Milk', 'cream': 'Cream', 'cheese': 'Cheese',
-  'whey': 'Whey', 'casein': 'Casein', 'butter': 'Butter',
-  'yogurt': 'Yogurt', 'ghee': 'Ghee', 'buttermilk': 'Buttermilk',
+  // ── Lactose Intolerance – English (unique, shared dairy already spread) ──
+  'ghee': 'Ghee', 'buttermilk': 'Buttermilk',
   'milk powder': 'Milk Powder', 'skim milk': 'Skim Milk',
   'whole milk': 'Whole Milk', 'milk solids': 'Milk Solids',
   'milk protein': 'Milk Protein', 'curds': 'Curds',
   'half and half': 'Half and Half', 'sour cream': 'Sour Cream',
   'condensed milk': 'Condensed Milk', 'evaporated milk': 'Evaporated Milk',
   'lactalbumin': 'Lactalbumin', 'lactoglobulin': 'Lactoglobulin',
-  // Lactose Intolerance – Arabic
-  'حليب': 'حليب', 'قشطة': 'قشطة', 'جبن': 'جبن',
-  'مصل اللبن': 'مصل اللبن', 'كازين': 'كازين', 'زبدة': 'زبدة',
-  'زبادي': 'زبادي', 'سمن': 'سمن', 'لبن': 'لبن',
+  // Lactose Intolerance – Arabic (unique only)
+  'سمن': 'سمن', 'لبن': 'لبن',
   'حليب بودرة': 'حليب بودرة', 'حليب مجفف': 'حليب مجفف',
   'حليب كامل الدسم': 'حليب كامل الدسم',
   'مواد صلبة الحليب': 'مواد صلبة الحليب',
   'بروتين الحليب': 'بروتين الحليب',
 
-  // ── Vegan – English ──────────────────────────────────────────────────────
+  // ── Vegan – English (unique, shared dairy & seafood already spread) ──────
   'meat': 'Meat', 'chicken': 'Chicken', 'beef': 'Beef',
   'pork': 'Pork', 'fish': 'Fish', 'egg': 'Egg', 'eggs': 'Eggs',
   'gelatin': 'Gelatin', 'gelatine': 'Gelatine', 'lard': 'Lard',
@@ -201,28 +257,28 @@ const Map<String, String> canonicalDisplayName = {
   'pepsin': 'Pepsin', 'rennet': 'Rennet', 'albumin': 'Albumin',
   'bone char': 'Bone Char', 'collagen': 'Collagen',
   'lanolin': 'Lanolin', 'anchovy': 'Anchovy',
-  'anchovies': 'Anchovies', 'squid': 'Squid', 'shrimp': 'Shrimp',
-  // Vegan – Arabic
+  'anchovies': 'Anchovies',
+  // Vegan – Arabic (unique only)
   'لحم': 'لحم', 'دجاج': 'دجاج', 'لحم بقر': 'لحم بقر',
   'سمك': 'سمك', 'بيض': 'بيض', 'جيلاتين': 'جيلاتين',
   'شحم': 'شحم', 'كولاجين': 'كولاجين',
 
-  // ── Keto – English ───────────────────────────────────────────────────────
+  // ── Keto – English (unique, shared sugars & grains already spread) ───────
   'flour': 'Flour', 'corn starch': 'Corn Starch', 'rice': 'Rice',
   'pasta': 'Pasta', 'bread': 'Bread',
   'potato starch': 'Potato Starch', 'dextrin': 'Dextrin',
   'high fructose corn syrup': 'High Fructose Corn Syrup',
-  'wheat flour': 'Wheat Flour', 'rice flour': 'Rice Flour',
+  'rice flour': 'Rice Flour',
   'tapioca starch': 'Tapioca Starch', 'modified starch': 'Modified Starch',
   'glucose syrup': 'Glucose Syrup', 'maple syrup': 'Maple Syrup',
   'oat flour': 'Oat Flour', 'barley malt': 'Barley Malt',
-  // Keto – Arabic
+  // Keto – Arabic (unique only)
   'دقيق': 'دقيق', 'نشا ذرة': 'نشا ذرة', 'أرز': 'أرز',
   'معكرونة': 'معكرونة', 'خبز': 'خبز',
   'نشا البطاطس': 'نشا البطاطس',
   'شراب الجلوكوز': 'شراب الجلوكوز', 'نشا معدل': 'نشا معدل',
 
-  // ── Low FODMAP – English ─────────────────────────────────────────────────
+  // ── Low FODMAP – English (unique, shared sugars/dairy/grains spread) ─────
   'garlic': 'Garlic', 'onion': 'Onion', 'apple': 'Apple',
   'pear': 'Pear', 'sorbitol': 'Sorbitol', 'mannitol': 'Mannitol',
   'xylitol': 'Xylitol', 'inulin': 'Inulin',
@@ -233,14 +289,14 @@ const Map<String, String> canonicalDisplayName = {
   'fruit juice concentrate': 'Fruit Juice Concentrate',
   'fructo-oligosaccharides': 'Fructo-Oligosaccharides',
   'fos': 'FOS', 'gos': 'GOS',
-  // Low FODMAP – Arabic
+  // Low FODMAP – Arabic (unique only)
   'ثوم': 'ثوم', 'بصل': 'بصل', 'تفاح': 'تفاح',
   'كمثرى': 'كمثرى', 'سوربيتول': 'سوربيتول',
   'مانيتول': 'مانيتول', 'إينولين': 'إينولين',
   'خرشوف': 'خرشوف', 'هليون': 'هليون', 'قرنبيط': 'قرنبيط',
   'فطر': 'فطر', 'بطيخ': 'بطيخ', 'مانجو': 'مانجو',
 
-  // ── Shellfish Allergy – English ──────────────────────────────────────────
+  // ── Shellfish Allergy – English (unique, shared seafood already spread) ──
   'crab': 'Crab', 'lobster': 'Lobster', 'crayfish': 'Crayfish',
   'prawn': 'Prawn', 'shellfish': 'Shellfish', 'oyster': 'Oyster',
   'mussel': 'Mussel', 'clam': 'Clam', 'scallop': 'Scallop',
