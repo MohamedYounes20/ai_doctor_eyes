@@ -1,0 +1,33 @@
+[33mffd7e72[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m HEAD@{0}: reset: moving to ffd7e72
+[33m18d1f7f[m[33m ([m[1;31morigin/feature/smart-ai-logic[m[33m, [m[1;32mfeature/smart-ai-logic[m[33m)[m HEAD@{1}: rebase (finish): returning to refs/heads/main
+[33m18d1f7f[m[33m ([m[1;31morigin/feature/smart-ai-logic[m[33m, [m[1;32mfeature/smart-ai-logic[m[33m)[m HEAD@{2}: rebase (start): checkout HEAD~3
+[33m18d1f7f[m[33m ([m[1;31morigin/feature/smart-ai-logic[m[33m, [m[1;32mfeature/smart-ai-logic[m[33m)[m HEAD@{3}: checkout: moving from main to main
+[33m18d1f7f[m[33m ([m[1;31morigin/feature/smart-ai-logic[m[33m, [m[1;32mfeature/smart-ai-logic[m[33m)[m HEAD@{4}: merge feature/smart-ai-logic: Fast-forward
+[33mcec7b8d[m HEAD@{5}: checkout: moving from feature/smart-ai-logic to main
+[33m18d1f7f[m[33m ([m[1;31morigin/feature/smart-ai-logic[m[33m, [m[1;32mfeature/smart-ai-logic[m[33m)[m HEAD@{6}: commit: Implement ETL Architecture
+[33m9ffa03a[m HEAD@{7}: commit: Version 2
+[33mffd7e72[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m HEAD@{8}: commit: version 1
+[33m67f168b[m HEAD@{9}: checkout: moving from feature/smart-ai-logic to feature/smart-ai-logic
+[33m67f168b[m HEAD@{10}: reset: moving to origin/feature/smart-ai-logic
+[33m67f168b[m HEAD@{11}: checkout: moving from feature/smart-ai-logic to feature/smart-ai-logic
+[33m67f168b[m HEAD@{12}: commit: Version 0 again
+[33m5973046[m HEAD@{13}: commit: Security: Remove API key from repository
+[33m29dc007[m HEAD@{14}: commit: Feat: Implement Two-Phase Hybrid Scan (Offline First) with Local Cache v4
+[33mcec7b8d[m HEAD@{15}: checkout: moving from main to feature/smart-ai-logic
+[33mcec7b8d[m HEAD@{16}: merge final-refinements: Fast-forward
+[33m825df65[m HEAD@{17}: checkout: moving from final-refinements to main
+[33mcec7b8d[m HEAD@{18}: checkout: moving from gallery-feature to final-refinements
+[33m1277133[m HEAD@{19}: checkout: moving from new to gallery-feature
+[33me9dff2d[m HEAD@{20}: checkout: moving from new to new
+[33me9dff2d[m HEAD@{21}: checkout: moving from main to new
+[33m825df65[m HEAD@{22}: pull origin main: Fast-forward
+[33m09faec9[m[33m ([m[1;32mfeature/ui-redesign[m[33m)[m HEAD@{23}: checkout: moving from main to main
+[33m09faec9[m[33m ([m[1;32mfeature/ui-redesign[m[33m)[m HEAD@{24}: merge feature/ui-redesign: Fast-forward
+[33mfa11628[m HEAD@{25}: reset: moving to origin/main
+[33mfa11628[m HEAD@{26}: checkout: moving from feature/ui-redesign to main
+[33m09faec9[m[33m ([m[1;32mfeature/ui-redesign[m[33m)[m HEAD@{27}: commit: chore: sync dependencies and lock files
+[33mc91ae3d[m HEAD@{28}: pull origin feature/ui-redesign: Fast-forward
+[33m40600c4[m HEAD@{29}: commit: UPD version 0 in branch 1
+[33mfa11628[m HEAD@{30}: checkout: moving from main to feature/ui-redesign
+[33mfa11628[m HEAD@{31}: Branch: renamed refs/heads/master to refs/heads/main
+[33mfa11628[m HEAD@{33}: commit (initial): Initial commit - AI Doctor Eyes App Version 0
