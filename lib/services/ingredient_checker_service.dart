@@ -44,7 +44,6 @@ class IngredientCheckerService {
     // ═══════ TRANSFORM ═══════
     final transformResult = _transformer.transform(cleanedText, conditions);
     final textForAnalysis = transformResult.mergedRawText;
-    final isHeavyArabic = transformResult.isHeavyArabic;
 
     // ═══════ ANALYZE — Phase 1: Local scan (ALWAYS first) ═══════
     final localResult = _analyzer.analyzeLocal(transformResult.uniqueCanonicalNames, conditions);
@@ -57,8 +56,6 @@ class IngredientCheckerService {
         overallStatus: localResult.status,
         details: localResult.details,
         source: AnalysisSource.localScan,
-        partialArabicWarning:
-            isHeavyArabic && transformResult.usedArabicGuess,
         localFoundHarmful: true,
       );
     }
@@ -73,9 +70,7 @@ class IngredientCheckerService {
         overallStatus: IngredientStatus.safe,
         details: localResult.details,
         source: AnalysisSource.localScan,
-        partialArabicWarning:
-            isHeavyArabic && transformResult.usedArabicGuess,
-        localFoundHarmful: false, // Since this branch means local scan was safe
+        localFoundHarmful: false,
       );
     }
 

@@ -30,7 +30,7 @@ class OcrCleaner {
 
     String result = kept.join(', ');
     result = result.replaceAll(
-        RegExp(r'^(ingredients?|المكونات|مكونات)\s*[:：،,]?\s*',
+        RegExp(r'^(ingredients?|contains?)\s*[:：,]?\s*',
             caseSensitive: false),
         '');
     result = result.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
