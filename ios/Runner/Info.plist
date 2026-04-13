@@ -48,5 +48,10 @@
 	<!-- Camera permission for scanning ingredients -->
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs camera access to scan food product ingredients for your health condition.</string>
+	<!-- Location permission for finding nearby healthy restaurants -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Used to find healthy restaurants near your current location.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Used to find healthy restaurants near your current location.</string>
 </dict>
 </plist>
