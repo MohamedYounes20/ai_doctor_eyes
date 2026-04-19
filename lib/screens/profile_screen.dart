@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import '../app_theme.dart';
 import '../core/constants/condition_config.dart';
 import '../main.dart' show selectedConditionsNotifier;
-import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
+import 'medical_record_screen.dart';
 import 'selection_screen.dart';
 import 'welcome_screen.dart';
 
@@ -23,7 +23,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   String? _fullName;
   int? _yearOfBirth;
-  List<HealthCondition> _conditions = [];
   bool _loading = true;
 
   @override
@@ -42,12 +41,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _load() async {
     final name = await _prefs.getFullName();
     final year = await _prefs.getYearOfBirth();
-    final conditions = await _prefs.getHealthConditions();
     if (mounted) {
       setState(() {
         _fullName = name ?? 'User';
         _yearOfBirth = year;
-        _conditions = conditions;
         _loading = false;
       });
     }
@@ -256,6 +253,87 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ),
                               );
                             },
+                          ),
+                          const SizedBox(height: 24),
+                          // ── Medical & Data section ──────────────────────
+                          Text(
+                            'Medical & Data',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: isDark ? AppTheme.navyCard : Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isDark
+                                    ? AppTheme.neonMint.withOpacity(0.25)
+                                    : AppTheme.navyColor.withOpacity(0.15),
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: isDark
+                                      ? Colors.black.withOpacity(0.2)
+                                      : AppTheme.navyColor.withOpacity(0.05),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 4),
+                              leading: Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: (isDark
+                                          ? AppTheme.neonMint
+                                          : AppTheme.navyColor)
+                                      .withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Icon(
+                                  Icons.medical_information_rounded,
+                                  color: isDark
+                                      ? AppTheme.neonMint
+                                      : AppTheme.navyColor,
+                                  size: 22,
+                                ),
+                              ),
+                              title: Text(
+                                'Lab Report & Backup',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color:
+                                      isDark ? Colors.white : AppTheme.navyColor,
+                                ),
+                              ),
+                              subtitle: Text(
+                                'Upload lab results • Export & Import data',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isDark
+                                      ? Colors.white54
+                                      : Colors.grey.shade600,
+                                ),
+                              ),
+                              trailing: Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 16,
+                                color: isDark
+                                    ? Colors.white38
+                                    : Colors.grey.shade400,
+                              ),
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const MedicalRecordScreen(),
+                                ),
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 24),
                         ],

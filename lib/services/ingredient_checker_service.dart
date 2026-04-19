@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/health_condition.dart';
 import '../models/analysis_models.dart';
+import '../models/medical_profile.dart';
 import '../logic/extractor/ocr_cleaner.dart';
 import '../logic/transformer/ingredient_transformer.dart';
 import '../logic/analyzer/health_analyzer.dart';
@@ -46,7 +47,13 @@ class IngredientCheckerService {
     final textForAnalysis = transformResult.mergedRawText;
 
     // ═══════ ANALYZE — Phase 1: Local scan (ALWAYS first) ═══════
-    final localResult = _analyzer.analyzeLocal(transformResult.uniqueCanonicalNames, conditions);
+    // Fetch the user's personal medical profile (may be null if none uploaded yet).
+    final MedicalProfile? medicalProfile = await _db.getMedicalProfile();
+    final localResult = _analyzer.analyzeLocal(
+      transformResult.uniqueCanonicalNames,
+      conditions,
+      medicalProfile: medicalProfile,
+    );
 
     // IMMEDIATE RETURN if local scan found anything harmful.
     // gemini is NEVER called → eliminates "AI analysis timed out" message.
