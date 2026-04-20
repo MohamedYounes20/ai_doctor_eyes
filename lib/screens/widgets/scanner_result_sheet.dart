@@ -331,13 +331,30 @@ class ScannerResultSheet extends StatelessWidget {
 
   Widget _buildIngredientPill(IngredientAnalysis ing) {
     final isDanger = ing.status == IngredientStatus.danger;
-    final bg = isDanger
-        ? AppTheme.dangerColor.withOpacity(0.12)
-        : AppTheme.warningColor.withOpacity(0.12);
-    final border = isDanger
-        ? AppTheme.dangerColor.withOpacity(0.4)
-        : AppTheme.warningColor.withOpacity(0.4);
-    final textColor = isDanger ? AppTheme.dangerColor : AppTheme.warningColor;
+    final isTrace = ing.status == IngredientStatus.trace;
+    final isMedical = ing.isMedicalProfileHit;
+    
+    Color bg;
+    Color border;
+    Color textColor;
+    IconData iconData;
+
+    if (isMedical || isDanger) {
+      bg = AppTheme.dangerColor.withOpacity(0.12);
+      border = AppTheme.dangerColor.withOpacity(0.4);
+      textColor = AppTheme.dangerColor;
+      iconData = isMedical ? Icons.medical_services_outlined : Icons.warning_rounded;
+    } else if (isTrace) {
+      bg = Colors.grey.withOpacity(0.12);
+      border = Colors.grey.withOpacity(0.4);
+      textColor = Colors.grey.shade600;
+      iconData = Icons.check;
+    } else { // Warning
+      bg = AppTheme.warningColor.withOpacity(0.12);
+      border = AppTheme.warningColor.withOpacity(0.4);
+      textColor = AppTheme.warningColor;
+      iconData = Icons.error_outline;
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
@@ -349,7 +366,7 @@ class ScannerResultSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isDanger ? Icons.warning_rounded : Icons.info_outline,
+            iconData,
             color: textColor,
             size: 14,
           ),
@@ -370,7 +387,23 @@ class ScannerResultSheet extends StatelessWidget {
   Widget _buildIssueRow(BuildContext context, IngredientAnalysis ing) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isDanger = ing.status == IngredientStatus.danger;
-    final iconColor = isDanger ? AppTheme.dangerColor : AppTheme.warningColor;
+    final isTrace = ing.status == IngredientStatus.trace;
+    final isMedical = ing.isMedicalProfileHit;
+
+    Color iconColor;
+    IconData iconData;
+
+    if (isMedical || isDanger) {
+      iconColor = AppTheme.dangerColor;
+      iconData = isMedical ? Icons.medical_services_outlined : Icons.warning_rounded;
+    } else if (isTrace) {
+      iconColor = isDark ? Colors.grey.shade400 : Colors.grey.shade600;
+      iconData = Icons.check;
+    } else {
+      iconColor = AppTheme.warningColor;
+      iconData = Icons.error_outline;
+    }
+    
     final textColor = isDark ? Colors.white : AppTheme.navyColor;
     final subColor = isDark ? Colors.white.withOpacity(0.6) : Colors.grey.shade700;
     return Padding(
@@ -379,7 +412,7 @@ class ScannerResultSheet extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isDanger ? Icons.warning_rounded : Icons.error_outline,
+            iconData,
             color: iconColor,
             size: 20,
           ),

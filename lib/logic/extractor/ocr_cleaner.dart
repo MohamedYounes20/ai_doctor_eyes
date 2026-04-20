@@ -2,7 +2,19 @@ import '../../core/constants/ingredient_constants.dart';
 
 class OcrCleaner {
   String cleanOcrText(String raw) {
-    final lines = raw.split(RegExp(r'[\r\n]+'));
+    String processingText = raw;
+
+    // 1. Text Isolation: Slice after keyword if found
+    final isolationRegex = RegExp(
+        r'([il1]ngredients|المكونات|المحتويات|contains)\s*[:\-]*', 
+        caseSensitive: false);
+    final match = isolationRegex.firstMatch(processingText);
+    
+    if (match != null) {
+      processingText = processingText.substring(match.end);
+    }
+
+    final lines = processingText.split(RegExp(r'[\r\n]+'));
     final kept = <String>[];
 
     for (final line in lines) {
@@ -29,10 +41,6 @@ class OcrCleaner {
     }
 
     String result = kept.join(', ');
-    result = result.replaceAll(
-        RegExp(r'^(ingredients?|contains?)\s*[:：,]?\s*',
-            caseSensitive: false),
-        '');
     result = result.replaceAll(RegExp(r'\s{2,}'), ' ').trim();
     return result;
   }

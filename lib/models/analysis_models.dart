@@ -10,7 +10,7 @@
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
-enum IngredientStatus { safe, warning, danger }
+enum IngredientStatus { safe, trace, warning, danger }
 
 /// Indicates how the final result was produced.
 enum AnalysisSource {
@@ -27,12 +27,16 @@ class IngredientAnalysis {
   final IngredientStatus status;
   final String reason;
   final String? severity; // Low | Medium | High
+  final bool isMedicalProfileHit;
+  final double positionRatio;
 
   const IngredientAnalysis({
     required this.ingredientName,
     required this.status,
     required this.reason,
     this.severity,
+    this.isMedicalProfileHit = false,
+    this.positionRatio = 0.0,
   });
 }
 

@@ -38,7 +38,6 @@ class HealthAnalyzer {
     MedicalProfile? medicalProfile,
   }) {
     final details = <IngredientAnalysis>[];
-    bool hasDanger = false;
 
     // ── Pre-build Tier 1 keyword set (lowercase) ─────────────────────────────
     final criticalKeywords = <String>[];
@@ -58,24 +57,35 @@ class HealthAnalyzer {
     }
 
     // ── Evaluate each ingredient ──────────────────────────────────────────────
-    for (final name in canonicalNames) {
+    for (int i = 0; i < canonicalNames.length; i++) {
+      final name = canonicalNames[i];
       final lowerName = name.toLowerCase();
       bool matched = false;
+      
+      final double positionRatio = i / canonicalNames.length;
 
       // Tier 1 — Critical (user's personal lab report keywords)
       if (criticalKeywords.isNotEmpty) {
         for (final kw in criticalKeywords) {
           if (lowerName.contains(kw)) {
+            String severityStr;
+            String reasonStr;
+            if (positionRatio <= 0.50) {
+              severityStr = 'CRITICAL 🚨';
+              reasonStr = 'High percentage of this ingredient. Extremely dangerous for your condition.';
+            } else {
+              severityStr = 'WARNING 🩺';
+              reasonStr = 'Contains trace amounts, but still unsafe for your medical condition.';
+            }
+
             details.add(IngredientAnalysis(
               ingredientName: name,
               status: IngredientStatus.danger,
-              reason:
-                  'Critical: Dangerous for your condition '
-                  '(${medicalProfile!.condition}). '
-                  'Flagged by your personal medical record.',
-              severity: medicalProfile.severity,
+              reason: reasonStr,
+              severity: severityStr,
+              isMedicalProfileHit: true,
+              positionRatio: positionRatio,
             ));
-            hasDanger = true;
             matched = true;
             break;
           }
@@ -86,15 +96,28 @@ class HealthAnalyzer {
       if (!matched) {
         for (final entry in standardKeywords.entries) {
           if (lowerName.contains(entry.key)) {
+            IngredientStatus tier2Status;
+            String tier2Severity;
+            
+            if (positionRatio <= 0.33) {
+              tier2Status = IngredientStatus.danger;
+              tier2Severity = 'High Concentration';
+            } else if (positionRatio <= 0.66) {
+              tier2Status = IngredientStatus.warning;
+              tier2Severity = 'Medium Amount';
+            } else {
+              tier2Status = IngredientStatus.trace;
+              tier2Severity = 'Trace Amount';
+            }
+
             details.add(IngredientAnalysis(
               ingredientName: name,
-              status: IngredientStatus.danger,
-              reason:
-                  'Identified as harmful for ${entry.value.cond.displayName} '
-                  '(local database).',
-              severity: 'High',
+              status: tier2Status,
+              reason: 'Identified as harmful for ${entry.value.cond.displayName} (local database).',
+              severity: tier2Severity,
+              isMedicalProfileHit: false,
+              positionRatio: positionRatio,
             ));
-            hasDanger = true;
             matched = true;
             break;
           }
@@ -107,13 +130,32 @@ class HealthAnalyzer {
           ingredientName: name,
           status: IngredientStatus.safe,
           reason: 'Not found in local harmful-ingredients database.',
+          isMedicalProfileHit: false,
+          positionRatio: positionRatio,
         ));
       }
     }
 
-    return LocalAnalysisResult(
-      hasDanger ? IngredientStatus.danger : IngredientStatus.safe,
-      details,
-    );
+    IngredientStatus highestStatus = IngredientStatus.safe;
+    bool hasMedicalHit = false;
+    bool hasLocalHit = false;
+
+    for (final d in details) {
+      if (d.isMedicalProfileHit) {
+        hasMedicalHit = true;
+      } else if (d.status == IngredientStatus.danger || 
+                 d.status == IngredientStatus.warning || 
+                 d.status == IngredientStatus.trace) {
+        hasLocalHit = true;
+      }
+    }
+
+    if (hasMedicalHit) {
+      highestStatus = IngredientStatus.danger;
+    } else if (hasLocalHit) {
+      highestStatus = IngredientStatus.warning;
+    }
+
+    return LocalAnalysisResult(highestStatus, details);
   }
 }

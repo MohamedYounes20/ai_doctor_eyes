@@ -187,6 +187,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
         case IngredientStatus.safe:
           _statusMessage = 'Safe';
           break;
+        case IngredientStatus.trace:
         case IngredientStatus.warning:
           _statusMessage = 'Warning';
           break;
