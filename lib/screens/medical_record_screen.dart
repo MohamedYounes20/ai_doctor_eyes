@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../app_theme.dart';
 import '../models/medical_profile.dart';
+import '../models/lab_record.dart';
 import '../services/backup_service.dart';
 import '../services/database_helper.dart';
 import '../services/medical_analysis_service.dart';
@@ -25,6 +26,7 @@ class _MedicalRecordScreenState extends State<MedicalRecordScreen> {
   final BackupService _backupService = BackupService();
 
   MedicalProfile? _profile;
+  List<LabRecord> _labRecords = [];
   bool _loadingProfile = true;
   bool _analyzingReport = false;
   bool _exportingBackup = false;
@@ -40,9 +42,11 @@ class _MedicalRecordScreenState extends State<MedicalRecordScreen> {
 
   Future<void> _loadProfile() async {
     final profile = await DatabaseHelper.instance.getMedicalProfile();
+    final records = await DatabaseHelper.instance.getLabRecords();
     if (mounted) {
       setState(() {
         _profile = profile;
+        _labRecords = records;
         _loadingProfile = false;
       });
     }
@@ -60,10 +64,9 @@ class _MedicalRecordScreenState extends State<MedicalRecordScreen> {
 
     setState(() => _analyzingReport = true);
     try {
-      final profile =
-          await _analysisService.analyzeMedicalReport(File(picked.path));
+      await _analysisService.analyzeMedicalReport(File(picked.path));
+      await _loadProfile();
       if (mounted) {
-        setState(() => _profile = profile);
         _showSnackBar(
           '✅ Medical profile extracted and saved!',
           AppTheme.safeColor,
@@ -152,6 +155,8 @@ class _MedicalRecordScreenState extends State<MedicalRecordScreen> {
             sliver: SliverList(
               delegate: SliverChildListDelegate([
                 _buildMedicalRecordCard(isDark),
+                const SizedBox(height: 16),
+                _buildLabRecordsCard(isDark),
                 const SizedBox(height: 16),
                 _buildDataManagementCard(isDark),
                 const SizedBox(height: 24),
@@ -406,6 +411,159 @@ class _MedicalRecordScreenState extends State<MedicalRecordScreen> {
         ],
       ),
     );
+  }
+
+  // ── Past Lab Records Card ───────────────────────────────────────────────────
+
+  Widget _buildLabRecordsCard(bool isDark) {
+    final textColor = isDark ? Colors.white : AppTheme.navyColor;
+    final subColor =
+        isDark ? Colors.white.withOpacity(0.6) : Colors.grey.shade600;
+    final accent = isDark ? AppTheme.neonMint : AppTheme.navyColor;
+
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.history_rounded, color: accent, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Past Lab Records',
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: textColor),
+            ),
+          ]),
+          const SizedBox(height: 16),
+
+          if (_loadingProfile)
+            Center(child: CircularProgressIndicator(color: accent))
+          else if (_labRecords.isEmpty)
+            _buildEmptyLabRecordsState(isDark, subColor)
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _labRecords.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (context, index) {
+                final record = _labRecords[index];
+                return _buildLabRecordItem(record, isDark, textColor, subColor);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyLabRecordsState(bool isDark, Color subColor) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.04) : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+            color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade200),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.folder_open_rounded, size: 40, color: subColor.withOpacity(0.5)),
+          const SizedBox(height: 12),
+          Text(
+            'No lab records found.\nUpload your first report!',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: subColor, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLabRecordItem(LabRecord record, bool isDark, Color textColor, Color subColor) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.black26 : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white12 : Colors.grey.shade300,
+        ),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          title: Text(
+            record.conditionTitle,
+            style: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+          subtitle: Text(
+            _formatDate(record.dateTime),
+            style: TextStyle(fontSize: 12, color: subColor),
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete_outline, color: AppTheme.dangerColor, size: 20),
+            onPressed: () => _deleteLabRecord(record.id!),
+          ),
+          childrenPadding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
+          expandedCrossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Forbidden Ingredients',
+                style: TextStyle(fontSize: 11, color: subColor)),
+            const SizedBox(height: 8),
+            if (record.forbiddenIngredients.isEmpty)
+              Text('None detected.', style: TextStyle(fontSize: 12, color: textColor))
+            else
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: record.forbiddenIngredients
+                    .map((kw) => _KeywordChip(label: kw, isDark: isDark))
+                    .toList(),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _deleteLabRecord(int id) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Record'),
+        content: const Text('Are you sure you want to delete this lab record?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Delete', style: TextStyle(color: AppTheme.dangerColor)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await DatabaseHelper.instance.deleteLabRecord(id);
+      await _loadProfile();
+      if (mounted) {
+        _showSnackBar('Record deleted.', Colors.grey.shade700);
+      }
+    }
   }
 
   // ── Data Management Card ────────────────────────────────────────────────────

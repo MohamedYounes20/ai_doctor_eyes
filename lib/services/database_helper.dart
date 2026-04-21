@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/medical_profile.dart';
+import '../models/lab_record.dart';
 
 /// Offline database helper using sqflite.
 ///
@@ -17,7 +18,8 @@ class DatabaseHelper {
   static const String _tableCachedIngredients = 'cached_ingredients';
   static const String _tableProductCache = 'product_analysis_cache';
   static const String _tableMedicalProfile = 'medical_profile';
-  static const int _version = 5;
+  static const String _tableLabRecords = 'lab_records';
+  static const int _version = 6;
 
   Future<Database> get database async {
     if (_database != null) return _database!;
@@ -66,6 +68,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute(_medicalProfileDdl);
+    await db.execute(_labRecordsDdl);
   }
 
   /// DDL for the medical_profile table — single-row upsert semantics.
@@ -76,6 +79,15 @@ class DatabaseHelper {
       forbidden_keywords TEXT NOT NULL,
       severity TEXT NOT NULL,
       last_updated INTEGER NOT NULL
+    )
+  ''';
+
+  static const String _labRecordsDdl = '''
+    CREATE TABLE IF NOT EXISTS $_tableLabRecords (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      date_time INTEGER NOT NULL,
+      condition_title TEXT NOT NULL,
+      forbidden_ingredients TEXT NOT NULL
     )
   ''';
 
@@ -115,6 +127,9 @@ class DatabaseHelper {
     }
     if (oldVersion < 5) {
       await db.execute(_medicalProfileDdl);
+    }
+    if (oldVersion < 6) {
+      await db.execute(_labRecordsDdl);
     }
   }
 
@@ -214,6 +229,24 @@ class DatabaseHelper {
     return MedicalProfile.fromMap(rows.first);
   }
 
+  // ── Lab Records History ─────────────────────────────────────────────────────
+
+  Future<int> insertLabRecord(LabRecord record) async {
+    final db = await database;
+    return db.insert(_tableLabRecords, record.toMap());
+  }
+
+  Future<List<LabRecord>> getLabRecords() async {
+    final db = await database;
+    final rows = await db.query(_tableLabRecords, orderBy: 'date_time DESC');
+    return rows.map((r) => LabRecord.fromMap(r)).toList();
+  }
+
+  Future<int> deleteLabRecord(int id) async {
+    final db = await database;
+    return db.delete(_tableLabRecords, where: 'id = ?', whereArgs: [id]);
+  }
+
   // ── Backup Export ───────────────────────────────────────────────────────────
 
   /// Dumps all user-facing tables to a serialisable map for JSON backup.
@@ -221,6 +254,7 @@ class DatabaseHelper {
     final db = await database;
     final productCache = await db.query(_tableProductCache);
     final medicalProfile = await db.query(_tableMedicalProfile);
+    final labRecords = await db.query(_tableLabRecords);
 
     // product_analysis_cache rows contain a `found_harmful` TEXT column which
     // is already JSON-encoded — safe to pass through as-is.
@@ -229,6 +263,9 @@ class DatabaseHelper {
           .map((r) => Map<String, dynamic>.from(r))
           .toList(),
       'medical_profile': medicalProfile
+          .map((r) => Map<String, dynamic>.from(r))
+          .toList(),
+      'lab_records': labRecords
           .map((r) => Map<String, dynamic>.from(r))
           .toList(),
     };

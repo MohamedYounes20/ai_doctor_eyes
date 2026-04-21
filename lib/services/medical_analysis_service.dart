@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/medical_profile.dart';
+import '../models/lab_record.dart';
 import 'database_helper.dart';
 
 /// Service that sends a lab-report image to Gemini Vision and extracts a
@@ -127,6 +128,13 @@ class MedicalAnalysisService {
 
     // ── 7. Persist to SQLite ─────────────────────────────────────────────────
     await DatabaseHelper.instance.upsertMedicalProfile(profile);
+
+    final labRecord = LabRecord(
+      dateTime: profile.lastUpdated,
+      conditionTitle: profile.condition,
+      forbiddenIngredients: profile.forbiddenKeywords,
+    );
+    await DatabaseHelper.instance.insertLabRecord(labRecord);
 
     return profile;
   }
