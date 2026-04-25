@@ -3,10 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'app_theme.dart';
-import 'screens/main_parent_screen.dart';
-import 'screens/selection_screen.dart';
-import 'screens/welcome_screen.dart';
-import 'services/preferences_service.dart';
+import 'screens/splash_screen.dart';
 
 /// Global theme-mode notifier — read/write from any screen via
 /// `themeModeNotifier.value = ThemeMode.dark`.
@@ -43,69 +40,7 @@ class MyApp extends StatelessWidget {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: mode,
-        home: const InitialRoute(),
-      ),
-    );
-  }
-}
-
-/// Routes: WelcomeScreen (first time) -> SelectionScreen -> MainParentScreen.
-class InitialRoute extends StatefulWidget {
-  const InitialRoute({super.key});
-
-  @override
-  State<InitialRoute> createState() => _InitialRouteState();
-}
-
-class _InitialRouteState extends State<InitialRoute> {
-  final PreferencesService _prefs = PreferencesService();
-
-  @override
-  void initState() {
-    super.initState();
-    _route();
-  }
-
-  Future<void> _route() async {
-    final onboardingDone = await _prefs.hasCompletedOnboarding();
-    final hasCondition = await _prefs.hasHealthCondition();
-
-    if (!mounted) return;
-
-    if (!onboardingDone) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const WelcomeScreen()),
-      );
-      return;
-    }
-    if (!hasCondition) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const SelectionScreen()),
-      );
-      return;
-    }
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const MainParentScreen()),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'Loading...',
-              style: TextStyle(fontSize: AppTheme.bodyFontSize),
-            ),
-          ],
-        ),
+        home: const SplashScreen(),
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:vibration/vibration.dart';
@@ -374,15 +375,76 @@ class _ScannerScreenState extends State<ScannerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('AI Food Scanner'),
+        title: RichText(
+          text: TextSpan(
+            children: [
+              TextSpan(
+                text: 'AI Food ',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              TextSpan(
+                text: 'Scanner',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.neonMint,
+                  letterSpacing: -0.5,
+                  shadows: const [
+                    Shadow(
+                      color: Color.fromRGBO(0, 255, 178, 0.45),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.photo_library_outlined),
-            tooltip: 'Scan from gallery',
-            onPressed: _pickFromGallery,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: GestureDetector(
+              onTap: _pickFromGallery,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                decoration: BoxDecoration(
+                  color: AppTheme.neonMint.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: AppTheme.neonMint.withOpacity(0.4),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.image_search_rounded,
+                      size: 18,
+                      color: AppTheme.neonMint,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Gallery',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.neonMint,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),

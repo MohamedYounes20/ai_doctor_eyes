@@ -14,8 +14,9 @@ class AppTheme {
   static const Color navyColor      = Color(0xFF1A2440);
   static const Color mintColor      = Color(0xFF00C896); // Light mode accent
   static const Color neonMint       = Color(0xFF00E5B0); // Dark mode accent
-  static const Color icyWhite       = Color(0xFFF0F4FF); // Light bg
-  static const Color spaceBlack     = Color(0xFF0B132B); // Dark bg
+  static const Color icyWhite       = Color(0xFFF0F4FF); // Legacy light bg tint
+  static const Color spaceBlack     = Color(0xFF0B132B); // Legacy dark bg
+  static const Color darkBg         = Color(0xFF121212); // Dark scaffold bg
   static const Color darkSurface    = Color(0xFF1E1E1E); // Dark surface
   static const Color navyCard       = Color(0xFF1A2440); // Dark AI result cards
 
@@ -24,6 +25,17 @@ class AppTheme {
   static const Color safeColor    = Color(0xFF22C55E);
   static const Color dangerColor  = Color(0xFFE00000);
   static const Color warningColor = Color(0xFFF59E0B);
+
+  // ── Two-Tone Typography colours ─────────────────────────────────────────────
+
+  /// Dark navy/black used for the first (foreground) word in ModernHeader.
+  static const Color textForeground = Color(0xFF111827);
+
+  /// Teal/green accent used for the second (accent) word in ModernHeader.
+  static const Color textAccent = Color(0xFF00C48C);
+
+  /// Glowing shadow color applied behind the accent word in ModernHeader.
+  static const Color accentShadow = Color.fromRGBO(0, 255, 178, 0.5);
 
   // ── Font sizes (unchanged) ──────────────────────────────────────────────────
 
@@ -45,7 +57,7 @@ class AppTheme {
         ).copyWith(
           surface: Colors.white,
         ),
-        scaffoldBackgroundColor: icyWhite,
+        scaffoldBackgroundColor: Colors.white,
         cardColor: Colors.white,
         appBarTheme: const AppBarTheme(
           backgroundColor: navyColor,
@@ -159,7 +171,7 @@ class AppTheme {
           surface: darkSurface,
           onSurface: Colors.white,
         ),
-        scaffoldBackgroundColor: spaceBlack,
+        scaffoldBackgroundColor: darkBg,
         cardColor: navyCard,
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF0D1B35),

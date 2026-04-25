@@ -3,9 +3,10 @@ import '../app_theme.dart';
 import '../main.dart' show themeModeNotifier, selectedConditionsNotifier;
 import '../models/health_condition.dart';
 import '../services/preferences_service.dart';
+import '../widgets/modern_header.dart';
 import 'selection_screen.dart';
 
-/// Settings Screen: Vibration toggle, Voice Feedback toggle, Dark Mode toggle.
+/// Settings tab — card-based layout matching the Profile screen aesthetic.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -37,7 +38,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _voiceFeedbackEnabled = voice;
         _loading = false;
       });
-      // Keep global notifier in sync so Profile screen updates instantly
+      // Keep global notifier in sync so Profile screen updates instantly.
       selectedConditionsNotifier.value =
           conditions.map((c) => c.displayName).toList();
     }
@@ -51,140 +52,120 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _setVoiceFeedback(bool value) async {
     await _prefs.setVoiceFeedbackEnabled(value);
     if (mounted) setState(() => _voiceFeedbackEnabled = value);
-    // TTS placeholder - will use flutter_tts when implemented
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppTheme.spaceBlack : AppTheme.icyWhite;
-    final cardBg = isDark ? AppTheme.navyCard : Colors.white;
-    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: bg,
-      appBar: AppBar(
-        title: const Text('Settings'),
-        centerTitle: true,
-      ),
       body: _loading
-          ? Center(child: CircularProgressIndicator(color: cs.primary))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // ── Appearance section
-                  _SectionHeader(title: 'Appearance', isDark: isDark),
-                  const SizedBox(height: 12),
-                  _SettingsCard(
-                    isDark: isDark,
-                    cardBg: cardBg,
-                    child: Column(
-                      children: [
-                        ValueListenableBuilder<ThemeMode>(
-                          valueListenable: themeModeNotifier,
-                          builder: (_, mode, __) => _SettingsTile(
-                            icon: mode == ThemeMode.dark
-                                ? Icons.dark_mode
-                                : Icons.light_mode_outlined,
-                            title: 'Dark Mode',
-                            subtitle: mode == ThemeMode.dark
-                                ? 'Space-black theme active'
-                                : 'Icy-white theme active',
-                            value: mode == ThemeMode.dark,
-                            onChanged: (v) {
-                              themeModeNotifier.value =
-                                  v ? ThemeMode.dark : ThemeMode.light;
-                            },
-                            isDark: isDark,
-                          ),
-                        ),
-                      ],
+          ? Center(
+              child: CircularProgressIndicator(
+                color: isDark ? AppTheme.neonMint : AppTheme.navyColor,
+              ),
+            )
+          : CustomScrollView(
+              slivers: [
+                // ── Page header ─────────────────────────────────────────────
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 56, 20, 24),
+                    child: ModernHeader(
+                      firstWord: 'App',
+                      secondWord: 'Settings',
+                      hasLineBreak: false,
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 24),
-
-                  // ── Accessibility section
-                  _SectionHeader(title: 'Accessibility', isDark: isDark),
-                  const SizedBox(height: 12),
-                  _SettingsCard(
+                // ── Appearance card ─────────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: _SettingsCard(
                     isDark: isDark,
-                    cardBg: cardBg,
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    header: _CardHeader(
+                      label: 'Appearance',
+                      icon: Icons.palette_rounded,
+                      isDark: isDark,
+                    ),
+                    child: ValueListenableBuilder<ThemeMode>(
+                      valueListenable: themeModeNotifier,
+                      builder: (_, mode, __) => _SettingsTile(
+                        icon: mode == ThemeMode.dark
+                            ? Icons.dark_mode_rounded
+                            : Icons.light_mode_rounded,
+                        title: 'Dark Mode',
+                        subtitle: mode == ThemeMode.dark
+                            ? 'Deep dark theme active'
+                            : 'Clean light theme active',
+                        value: mode == ThemeMode.dark,
+                        onChanged: (v) => themeModeNotifier.value =
+                            v ? ThemeMode.dark : ThemeMode.light,
+                        isDark: isDark,
+                        isLast: true,
+                      ),
+                    ),
+                  ),
+                ),
+
+                // ── Accessibility card ──────────────────────────────────────
+                SliverToBoxAdapter(
+                  child: _SettingsCard(
+                    isDark: isDark,
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    header: _CardHeader(
+                      label: 'Accessibility',
+                      icon: Icons.accessibility_new_rounded,
+                      isDark: isDark,
+                    ),
                     child: Column(
                       children: [
                         _SettingsTile(
-                          icon: Icons.vibration,
+                          icon: Icons.vibration_rounded,
                           title: 'Vibration Alerts',
-                          subtitle: 'Alert you with vibration',
+                          subtitle: 'Alert you with vibration on scan results',
                           value: _vibrationEnabled,
                           onChanged: _setVibration,
                           isDark: isDark,
                         ),
                         _Divider(isDark: isDark),
                         _SettingsTile(
-                          icon: Icons.visibility_outlined,
-                          title: 'High Contrast Mode',
-                          subtitle: 'Increase colour contrast',
-                          value: false,
-                          onChanged: (_) {},
-                          isDark: isDark,
-                        ),
-                        _Divider(isDark: isDark),
-                        _SettingsTile(
-                          icon: Icons.volume_up_outlined,
+                          icon: Icons.volume_up_rounded,
                           title: 'Voice Feedback',
-                          subtitle: 'Hear scan results aloud',
+                          subtitle: 'Hear scan results read aloud',
                           value: _voiceFeedbackEnabled,
                           onChanged: _setVoiceFeedback,
                           isDark: isDark,
                         ),
+                        _Divider(isDark: isDark),
+                        _SettingsTile(
+                          icon: Icons.contrast_rounded,
+                          title: 'High Contrast Mode',
+                          subtitle: 'Increase colour contrast for readability',
+                          value: false,
+                          onChanged: (_) {},
+                          isDark: isDark,
+                          isLast: true,
+                        ),
                       ],
                     ),
                   ),
+                ),
 
-                  const SizedBox(height: 24),
-
-                  // ── Health Condition section
-                  _SectionHeader(title: 'Health Condition', isDark: isDark),
-                  const SizedBox(height: 12),
-                  _SettingsCard(
+                // ── Health condition card ───────────────────────────────────
+                SliverToBoxAdapter(
+                  child: _SettingsCard(
                     isDark: isDark,
-                    cardBg: cardBg,
-                    child: ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.medical_services_outlined,
-                        color: isDark ? AppTheme.neonMint : AppTheme.navyColor,
-                      ),
-                      title: Text(
-                        _currentConditions.isEmpty
-                            ? 'None'
-                            : _currentConditions
-                                .map((c) => c.displayName)
-                                .join(', '),
-                        style: TextStyle(
-                          fontSize: AppTheme.bodyFontSize,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? Colors.white : AppTheme.navyColor,
-                        ),
-                      ),
-                      subtitle: Text(
-                        _currentConditions.isEmpty
-                            ? 'Select conditions'
-                            : '${_currentConditions.length} condition(s) selected',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: isDark
-                              ? Colors.white.withOpacity(0.5)
-                              : Colors.grey.shade600,
-                        ),
-                      ),
-                      trailing: Icon(
-                        Icons.chevron_right,
-                        color: isDark ? Colors.white38 : Colors.grey,
-                      ),
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    header: _CardHeader(
+                      label: 'Health Condition',
+                      icon: Icons.favorite_rounded,
+                      isDark: isDark,
+                    ),
+                    child: _ConditionTile(
+                      conditions: _currentConditions,
+                      isDark: isDark,
                       onTap: () async {
                         await Navigator.push(
                           context,
@@ -197,86 +178,111 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       },
                     ),
                   ),
-                ],
-              ),
+                ),
+
+                const SliverToBoxAdapter(child: SizedBox(height: 32)),
+              ],
             ),
     );
   }
 }
 
-// ── Reusable sub-widgets ───────────────────────────────────────────────────────
+// ── Sub-widgets ───────────────────────────────────────────────────────────────
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final bool isDark;
-  const _SectionHeader({required this.title, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w700,
-        letterSpacing: 1.2,
-        color: isDark
-            ? AppTheme.neonMint
-            : AppTheme.navyColor.withOpacity(0.6),
-      ),
-    );
-  }
-}
-
+/// Card container matching the Profile screen style.
 class _SettingsCard extends StatelessWidget {
+  const _SettingsCard({
+    required this.child,
+    required this.isDark,
+    this.header,
+    this.margin,
+  });
+
   final Widget child;
+  final Widget? header;
   final bool isDark;
-  final Color cardBg;
-  const _SettingsCard(
-      {required this.child, required this.isDark, required this.cardBg});
+  final EdgeInsetsGeometry? margin;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      margin: margin ?? const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(16),
+        color: isDark ? AppTheme.darkSurface : Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.07)
+              : Colors.grey.shade200,
+        ),
         boxShadow: [
           BoxShadow(
             color: isDark
                 ? Colors.black.withOpacity(0.25)
-                : AppTheme.navyColor.withOpacity(0.05),
+                : Colors.black.withOpacity(0.05),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: child,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (header != null) ...[
+            header!,
+            const SizedBox(height: 10),
+          ],
+          child,
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 }
 
-class _Divider extends StatelessWidget {
+/// Accent-tinted section title row inside each card.
+class _CardHeader extends StatelessWidget {
+  const _CardHeader({
+    required this.label,
+    required this.icon,
+    required this.isDark,
+  });
+
+  final String label;
+  final IconData icon;
   final bool isDark;
-  const _Divider({required this.isDark});
 
   @override
   Widget build(BuildContext context) {
-    return Divider(
-      height: 1,
-      color: isDark ? Colors.white.withOpacity(0.08) : Colors.grey.shade100,
+    final accent = isDark ? AppTheme.neonMint : AppTheme.navyColor;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: accent.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 15, color: accent),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.4,
+            color: accent.withOpacity(0.9),
+          ),
+        ),
+      ],
     );
   }
 }
 
+/// Single toggle row inside a settings card.
 class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-  final bool isDark;
-
   const _SettingsTile({
     required this.icon,
     required this.title,
@@ -284,28 +290,32 @@ class _SettingsTile extends StatelessWidget {
     required this.value,
     required this.onChanged,
     required this.isDark,
+    this.isLast = false,
   });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool isDark;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
+    final accent = isDark ? AppTheme.neonMint : AppTheme.navyColor;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 4),
       child: Row(
         children: [
           Container(
-            width: 38,
-            height: 38,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
-              color: isDark
-                  ? AppTheme.neonMint.withOpacity(0.1)
-                  : AppTheme.navyColor.withOpacity(0.07),
-              borderRadius: BorderRadius.circular(10),
+              color: accent.withOpacity(0.09),
+              borderRadius: BorderRadius.circular(11),
             ),
-            child: Icon(
-              icon,
-              color: isDark ? AppTheme.neonMint : AppTheme.navyColor,
-              size: 20,
-            ),
+            child: Icon(icon, color: accent, size: 20),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -323,10 +333,11 @@ class _SettingsTile extends StatelessWidget {
                 Text(
                   subtitle,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 12,
                     color: isDark
-                        ? Colors.white.withOpacity(0.5)
-                        : Colors.grey.shade600,
+                        ? Colors.white.withOpacity(0.45)
+                        : Colors.grey.shade500,
+                    height: 1.3,
                   ),
                 ),
               ],
@@ -335,8 +346,104 @@ class _SettingsTile extends StatelessWidget {
           Switch.adaptive(
             value: value,
             onChanged: onChanged,
+            activeColor: accent,
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Thin divider between tiles.
+class _Divider extends StatelessWidget {
+  const _Divider({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Divider(
+      height: 1,
+      indent: 54,
+      color: isDark ? Colors.white.withOpacity(0.07) : Colors.grey.shade100,
+    );
+  }
+}
+
+/// Health condition row — tappable navigator tile.
+class _ConditionTile extends StatelessWidget {
+  const _ConditionTile({
+    required this.conditions,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  final List<HealthCondition> conditions;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = isDark ? AppTheme.neonMint : AppTheme.navyColor;
+    final label = conditions.isEmpty
+        ? 'None selected'
+        : conditions.map((c) => c.displayName).join(', ');
+    final sublabel = conditions.isEmpty
+        ? 'Tap to select your health conditions'
+        : '${conditions.length} condition${conditions.length == 1 ? '' : 's'} active';
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.09),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: Icon(Icons.medical_services_rounded,
+                  color: accent, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: AppTheme.bodyFontSize - 2,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white : AppTheme.navyColor,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    sublabel,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark
+                          ? Colors.white.withOpacity(0.45)
+                          : Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 14,
+              color: isDark
+                  ? Colors.white.withOpacity(0.30)
+                  : Colors.grey.shade400,
+            ),
+          ],
+        ),
       ),
     );
   }

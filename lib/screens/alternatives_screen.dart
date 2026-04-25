@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../app_theme.dart';
 import '../services/ai_alternatives_service.dart';
 import '../services/restaurant_locator_service.dart';
+import '../widgets/modern_header.dart';
 
 /// Screen where users type a food craving and receive AI-generated healthy
 /// alternatives personalised to their health profile.
@@ -70,6 +71,7 @@ class _AlternativesScreenState extends State<AlternativesScreen> {
       body: CustomScrollView(
         slivers: [
           _buildAppBar(),
+          SliverToBoxAdapter(child: _buildPageHeader()),
           SliverToBoxAdapter(child: _buildSearchBar()),
           if (_isLoading) SliverFillRemaining(child: _buildLoading()),
           if (!_isLoading && _alternatives != null) _buildResults(),
@@ -86,31 +88,8 @@ class _AlternativesScreenState extends State<AlternativesScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SliverAppBar(
       pinned: true,
-      expandedHeight: 130,
+      expandedHeight: 80,
       flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.only(left: 20, bottom: 14),
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Smart Alternatives',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-                color: Colors.white,
-              ),
-            ),
-            Text(
-              'Healthier swaps for your cravings',
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.white.withOpacity(0.8),
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-          ],
-        ),
         background: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -121,28 +100,74 @@ class _AlternativesScreenState extends State<AlternativesScreen> {
               end: Alignment.bottomRight,
             ),
           ),
-          child: Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.only(right: 20, top: 20),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppTheme.neonMint.withOpacity(0.25),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Center(
-                  child: Text('AI',
-                      style: TextStyle(
-                          color: AppTheme.neonMint,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13)),
-                ),
+        ),
+      ),
+      backgroundColor: isDark
+          ? const Color(0xFF0D1B35)
+          : AppTheme.navyColor,
+    );
+  }
+
+  // ─── Page Header (Two-Tone) ──────────────────────────────────────────────────
+
+  Widget _buildPageHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── AI Suggestions badge ─────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppTheme.textAccent.withOpacity(0.12),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: AppTheme.textAccent.withOpacity(0.35),
+                width: 1,
               ),
             ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 15,
+                  color: AppTheme.textAccent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'AI Suggestions',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppTheme.textAccent,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
+          const SizedBox(height: 14),
+          // ── Two-tone header ──────────────────────────────────────────────
+          const ModernHeader(
+            firstWord: 'Smart',
+            secondWord: 'Alternatives',
+            hasLineBreak: true,
+          ),
+          const SizedBox(height: 8),
+          // ── Subtitle ────────────────────────────────────────────────────
+          Text(
+            'Discover healthier versions of your favorite cravings',
+            style: TextStyle(
+              fontSize: 14,
+              color: isDark
+                  ? Colors.white.withOpacity(0.55)
+                  : Colors.grey.shade600,
+              height: 1.4,
+            ),
+          ),
+        ],
       ),
     );
   }

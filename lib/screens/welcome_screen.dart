@@ -4,8 +4,15 @@ import '../services/preferences_service.dart';
 import 'selection_screen.dart';
 
 /// WelcomeScreen: Full Name, Year of Birth. Save via PreferencesService.
+///
+/// When [isEditing] is `true` (navigated from Profile Screen), a back button
+/// is shown so the user can return without changing data, and saving pops
+/// back instead of pushing the onboarding [SelectionScreen].
 class WelcomeScreen extends StatefulWidget {
-  const WelcomeScreen({super.key});
+  const WelcomeScreen({super.key, this.isEditing = false});
+
+  /// `true` when opened from the Profile Screen edit-pencil button.
+  final bool isEditing;
 
   @override
   State<WelcomeScreen> createState() => _WelcomeScreenState();
@@ -35,7 +42,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       yearOfBirth: _yearOfBirth!,
     );
     if (ok && mounted) {
-      if (mounted) {
+      if (widget.isEditing) {
+        // Return to Profile Screen — no need to re-run onboarding.
+        Navigator.of(context).pop();
+      } else {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (_) => const SelectionScreen()),
         );
@@ -56,6 +66,29 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
     return Scaffold(
       backgroundColor: bg,
+      // Show a standard AppBar with a back button when editing from Profile.
+      appBar: widget.isEditing
+          ? AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: IconButton(
+                icon: Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: isDark ? Colors.white : AppTheme.navyColor,
+                ),
+                tooltip: 'Back to Profile',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              title: Text(
+                'Edit Profile',
+                style: TextStyle(
+                  color: isDark ? Colors.white : AppTheme.navyColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: AppTheme.bodyFontSize,
+                ),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
@@ -64,7 +97,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 32),
+                // Extra top spacing only when there's no AppBar.
+                if (!widget.isEditing) const SizedBox(height: 32),
 
                 // ── Logo
                 Center(
@@ -107,7 +141,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tell us about yourself to get started',
+                  widget.isEditing
+                      ? 'Update your details below'
+                      : 'Tell us about yourself to get started',
                   style: TextStyle(
                     fontSize: AppTheme.bodyFontSize - 2,
                     color: isDark
@@ -230,7 +266,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   child: ElevatedButton(
                     onPressed: _canProceed && !_saving ? _onNext : null,
                     child: Text(
-                      _saving ? 'Saving...' : 'Next: Choose My Conditions',
+                      _saving
+                          ? 'Saving...'
+                          : widget.isEditing
+                              ? 'Save Changes'
+                              : 'Next: Choose My Conditions',
                       style: const TextStyle(
                         fontSize: AppTheme.bodyFontSize,
                         fontWeight: FontWeight.bold,

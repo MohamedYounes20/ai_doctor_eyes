@@ -8,6 +8,8 @@ class PreferencesService {
   static const String _hasCompletedOnboardingKey = 'has_completed_onboarding';
   static const String _vibrationEnabledKey = 'vibration_enabled';
   static const String _voiceFeedbackEnabledKey = 'voice_feedback_enabled';
+  static const String _avatarPathKey = 'avatar_path';
+  static const String _memberSinceKey = 'member_since';
 
   Future<SharedPreferences> get _prefs async =>
       await SharedPreferences.getInstance();
@@ -40,10 +42,57 @@ class PreferencesService {
     return now - year;
   }
 
+  // --- Avatar ---
+
+  Future<bool> saveAvatarPath(String path) async {
+    try {
+      final prefs = await _prefs;
+      return await prefs.setString(_avatarPathKey, path);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String?> getAvatarPath() async {
+    final prefs = await _prefs;
+    return prefs.getString(_avatarPathKey);
+  }
+
+  // --- Member since ---
+
+  /// Saves the member-since label as "Month YYYY" (e.g. "April 2026").
+  /// Called automatically by [setOnboardingCompleted] on first save.
+  Future<void> saveMemberSince() async {
+    final prefs = await _prefs;
+    if (prefs.getString(_memberSinceKey) != null) return; // already stored
+    final now = DateTime.now();
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    final label = '${months[now.month - 1]} ${now.year}';
+    await prefs.setString(_memberSinceKey, label);
+  }
+
+  Future<String> getMemberSince() async {
+    final prefs = await _prefs;
+    return prefs.getString(_memberSinceKey) ?? _defaultMemberSince();
+  }
+
+  String _defaultMemberSince() {
+    final now = DateTime.now();
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    return '${months[now.month - 1]} ${now.year}';
+  }
+
   // --- Onboarding ---
   Future<bool> setOnboardingCompleted(bool value) async {
     try {
       final prefs = await _prefs;
+      if (value) await saveMemberSince(); // stamp join date on first completion
       return await prefs.setBool(_hasCompletedOnboardingKey, value);
     } catch (e) {
       return false;
