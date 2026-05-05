@@ -2,9 +2,6 @@
 
 > **Your Digital Doctor in Your Pocket.** > A high-intelligence health-tech assistant that turns your camera into a medical guardian, ensuring every bite you take is safe for **your** specific body.
 
-![App Splash](https://raw.githubusercontent.com/user-attachments/assets/image_edc97a.png) 
-*(The minimalist, high-fidelity splash screen greeting the user)*
-
 ---
 
 ## 📖 The Story: Beyond the Label
@@ -20,7 +17,9 @@ Imagine standing in a grocery aisle, holding a product with a list of ingredient
 ### 1. Precision Ingredient Scanning
 Our custom-built scanning pipeline doesn't just read text; it understands it. Using **Google ML Kit**, it extracts ingredients and filters out the "noise" (like nutrition facts or brand names) to find exactly what matters.
 
-![Scanning Interface](https://raw.githubusercontent.com/user-attachments/assets/image_f4c190.jpg)
+
+<img width="461" height="1023" alt="image" src="https://github.com/user-attachments/assets/a5c1c128-5d70-4929-b3cd-4c5454908262" />
+
 *Real-time scanning with immediate OCR cleanup.*
 
 ### 2. Personalized Medical Profiles
@@ -35,7 +34,8 @@ Your health is unique. The app allows you to select from standard conditions (Ve
 ### 3. Smart Alternatives & "Cravings" Search
 If a product is unsafe, you don't have to go hungry. Our **Ideas** engine allows you to type in what you’re craving—like "Pizza"—and the AI suggests specific, healthy versions that are verified safe for your active health conditions.
 
-![Smart Alternatives](https://raw.githubusercontent.com/user-attachments/assets/image_f4c459.jpg)
+<img width="461" height="1023" alt="image" src="https://github.com/user-attachments/assets/5a14e911-8cf7-41ee-b4a5-8cb41a9b6bd6" />
+
 *Searching for healthy versions of your favorite cravings.*
 
 ---
@@ -66,7 +66,7 @@ We believe medical data should never leave your hand.
 * **No Tracking:** Your name, birth year, and medical keywords stay on your device.
 * **Immediate Alerts:** High-contrast UI and vibration alerts ensure you never miss a critical warning.
 
-![Analysis Result](https://raw.githubusercontent.com/user-attachments/assets/image_f4c15b.jpg)
+<img width="461" height="1023" alt="image" src="https://github.com/user-attachments/assets/e99e5869-ad1e-493d-9ce3-11155374c46d" />
 *Clear, color-coded danger levels for high-risk ingredients.*
 
 ---
