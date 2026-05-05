@@ -1,8 +1,9 @@
-<img width="760" height="1600" alt="image" src="https://github.com/user-attachments/assets/e017a0ac-602b-4c1f-97c1-9a872d1f6a2f" /># AI Doctor Eyes 👁️
+# AI Doctor Eyes 👁️
 
 > **Your Digital Doctor in Your Pocket.** > A high-intelligence health-tech assistant that turns your camera into a medical guardian, ensuring every bite you take is safe for **your** specific body.
 
 ![App Splash](https://raw.githubusercontent.com/user-attachments/assets/image_edc97a.png) 
+*(The minimalist, high-fidelity splash screen greeting the user)*
 
 ---
 
